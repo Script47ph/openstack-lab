@@ -336,6 +336,10 @@ deploy_ceph_cluster() {
     ssh -l root ${CIDR}.${INTERFACE3}.11 tar -xf /root/ceph-cluster.tar
     ssh -l root ${CIDR}.${INTERFACE3}.11 rm /root/ceph-cluster.tar
     rm ceph-cluster.tar
+    cat <<EOF | ssh -l root ${CIDR}.${INTERFACE3}.11 tee -a /root/Ceph-iac/group_vars/all.yml
+    public_network: ${CIDR}.${INTERFACE3}.0/24
+    cluster_network: ${CIDR}.${INTERFACE4}.0/24
+EOF
     ansible_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which ansible)
     if [[ -z ${ansible_check} ]]; then
         echo "ansible not found. Installing..."
