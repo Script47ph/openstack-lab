@@ -347,15 +347,73 @@ EOF
     else
         echo "ansible found."
     fi
-    ssh -l root ${CIDR}.${INTERFACE3}.11 ansible -i /root/Ceph-iac/inventory/hosts all -m ping
-    if [[ $? -eq 0 ]]; then
-        ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/inventory/hosts /root/Ceph-iac/bootstrap-server.yml
-        ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/inventory/hosts /root/Ceph-iac/deploy-cluster.yml
-        ssh -l root ${CIDR}.${INTERFACE3}.11 /root/Ceph-iac/keyring-copy.sh
+    ceph_deploy (){
+        cd /root/Ceph-iac
+        ansible all -m ping
+        if [[ $? -eq 0 ]]; then
+            ansible-playbook bootstrap-server.yml
+            if [[ $? -eq 0 ]]; then
+                ansible-playbook deploy-cluster.yml
+                if [[ $? -eq 0 ]]; then
+                    ./keyring-copy.sh
+                else
+                    echo "ansible-playbook deploy-cluster.yml failed."
+                    exit 1
+                fi
+            else
+                echo "ansible-playbook bootstrap-server.yml failed."
+                exit 1
+            fi
+        else
+            echo "ansible ping failed."
+            exit 1
+        fi
+    }
+    ssh -l root ${CIDR}.${INTERFACE3}.11 "$(typeset -f ceph_deploy); ceph_deploy"
+}
+
+deploy_openstack_cluster() {
+    cd ${DATAPATH}/ansible-iac
+    tar -cf openstack-cluster.tar Openstack-iac
+    scp openstack-cluster.tar root@${CIDR}.${INTERFACE3}.11:/root
+    ssh -l root ${CIDR}.${INTERFACE3}.11 tar -xf /root/openstack-cluster.tar
+    ssh -l root ${CIDR}.${INTERFACE3}.11 rm /root/openstack-cluster.tar
+    rm openstack-cluster.tar
+    cat <<EOF | ssh -l root ${CIDR}.${INTERFACE3}.11 tee -a /root/Openstack-iac/group_vars/all.yml
+# Custom Value
+region_name: ${REGIONNAME}
+internal_vip_address: ${CIDR}.${INTERFACE4}.100
+admin_vip_address: "{{ internal_vip_address }}"
+public_vip_address: ${CIDR}.${INTERFACE3}.100
+
+internal_vip_hostname: internal.{{ region_name }}.cth.my.id
+admin_vip_hostname: admin.{{ region_name }}.cth.my.id
+public_vip_hostname: public.{{ region_name }}.cth.my.id
+EOF
+    ansible_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which ansible)
+    if [[ -z ${ansible_check} ]]; then
+        echo "ansible not found. Installing..."
+        ssh -l root ${CIDR}.${INTERFACE3}.11 pip3 install ansible && python3 -m pip install jinja2==3.0.3
     else
-        echo "ansible ping failed."
-        exit 1
+        echo "ansible found."
     fi
+    openstack_deploy(){
+        cd /root/Openstack-iac
+        ansible all -m ping
+        if [[ $? -eq 0 ]]; then
+            ansible-playbook deploy.yml
+            if [[ $? -eq 0 ]]; then
+                echo "Openstack deployed successfully."
+            else
+                echo "ansible-playbook deploy.yml failed."
+                exit 1
+            fi
+        else
+            echo "ansible ping failed."
+            exit 1
+        fi
+    }
+    ssh -l root ${CIDR}.${INTERFACE3}.11 "$(typeset -f openstack_deploy); openstack_deploy"
 }
 
 prepare_lab() {
@@ -469,8 +527,13 @@ elif [[ $1 == "--lab" ]]; then
     elif [[ $2 == "deploy" ]]; then
         if [[ $3 == "ceph" ]]; then
             deploy_ceph_cluster
-        else
+        elif [[ $3 == "openstack" ]]; then
+            deploy_openstack_cluster
+        elif [[ $3 == "lab" ]]; then
             deploy_lab
+        else
+            usage
+            exit 1
         fi
     elif [[ $2 == "stop" ]]; then
         stop_lab

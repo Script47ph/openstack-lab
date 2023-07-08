@@ -3,19 +3,19 @@
 # GLOBAL
 #########
 instance: bri
-region_name: vnc
+# region_name: vnc
 exec_user: root
 
 #######
 # VIP
 #######
-internal_vip_address: 10.5.236.100
-admin_vip_address: "{{ internal_vip_address }}"
-public_vip_address: 10.5.251.100
+# internal_vip_address: 10.5.236.100
+# admin_vip_address: "{{ internal_vip_address }}"
+# public_vip_address: 10.5.251.100
 
-internal_vip_hostname: internal.{{ region_name }}.cth.my.id
-admin_vip_hostname: admin.{{ region_name }}.cth.my.id
-public_vip_hostname: public.{{ region_name }}.cth.my.id
+# internal_vip_hostname: internal.{{ region_name }}.cth.my.id
+# admin_vip_hostname: admin.{{ region_name }}.cth.my.id
+# public_vip_hostname: public.{{ region_name }}.cth.my.id
 #internal_vip_prefix: 24 (Default value)
 
 ############
