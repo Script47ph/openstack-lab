@@ -335,6 +335,7 @@ deploy_ceph_cluster() {
     ssh -l root ${CIDR}.${INTERFACE3}.11 tar -xf /root/ceph-cluster.tar
     ssh -l root ${CIDR}.${INTERFACE3}.11 rm /root/ceph-cluster.tar
     rm ${DATAPATH}/ansible-iac/ceph-cluster.tar
+    ssh -l root ${CIDR}.${INTERFACE3}.11 pip3 install ansible && python3 -m pip install jinja2==3.0.3
     ssh -l root ${CIDR}.${INTERFACE3}.11 ansible -i /root/Ceph-iac/hosts all -m ping
     if [[ $? -eq 0 ]]; then
         ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/hosts /root/Ceph-iac/site.yml
