@@ -340,6 +340,13 @@ deploy_ceph_cluster() {
 public_network: ${CIDR}.${INTERFACE3}.0/24
 cluster_network: ${CIDR}.${INTERFACE4}.0/24
 EOF
+    python3_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which python3)
+    if [[ -z ${python3_check} ]]; then
+        echo "python3 not found. Installing..."
+        ssh -l root ${CIDR}.${INTERFACE3}.11 apt install -y python3 python3-pip
+    else
+        echo "python3 found."
+    fi
     ansible_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which ansible)
     if [[ -z ${ansible_check} ]]; then
         echo "ansible not found. Installing..."
@@ -390,6 +397,13 @@ internal_vip_hostname: internal.{{ region_name }}.cth.my.id
 admin_vip_hostname: admin.{{ region_name }}.cth.my.id
 public_vip_hostname: public.{{ region_name }}.cth.my.id
 EOF
+    python3_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which python3)
+    if [[ -z ${python3_check} ]]; then
+        echo "python3 not found. Installing..."
+        ssh -l root ${CIDR}.${INTERFACE3}.11 apt install -y python3 python3-pip
+    else
+        echo "python3 found."
+    fi
     ansible_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which ansible)
     if [[ -z ${ansible_check} ]]; then
         echo "ansible not found. Installing..."
@@ -470,7 +484,7 @@ EOF
         timedatectl set-ntp true
         apt update
         apt upgrade -y
-        apt install -y chrony git wget unzip vim bash-completion python3 python3-pip
+        apt install -y chrony git wget unzip vim bash-completion
         wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh
         chmod +x /usr/local/bin/oh-my-posh
         rm -rf simple-dotfiles
