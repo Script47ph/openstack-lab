@@ -1,0 +1,25 @@
+totem {
+	version: 2
+	cluster_name: debian
+	crypto_cipher: none
+	crypto_hash: none
+}
+
+logging {
+
+	fileline: off
+	to_stderr: yes
+	to_logfile: yes
+	logfile: /var/log/corosync/corosync.log
+	to_syslog: yes
+	debug: off
+	logger_subsys {
+		subsys: QUORUM
+		debug: off
+	}
+}
+
+quorum {
+	provider: corosync_votequorum
+}
+

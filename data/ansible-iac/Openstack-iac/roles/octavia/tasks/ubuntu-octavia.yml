@@ -1,0 +1,461 @@
+---
+# MYSQL
+
+- name: Create octavia database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: octavia
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant octavia database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: octavia
+    password: "{{ mysql_octavia_password }}"
+    append_privs: true
+    priv: 'octavia.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant octavia database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: octavia
+    password: "{{ mysql_octavia_password }}"
+    append_privs: true
+    priv: 'octavia.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant octavia database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: octavia
+    password: "{{ mysql_octavia_password }}"
+    append_privs: true
+    priv: 'octavia.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+# USER
+
+- name: Create octavia user
+  os_user:
+    cloud: openstack
+    state: present
+    name: octavia
+    password: "{{ openstack_octavia_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the octavia user
+  os_user_role:
+    cloud: openstack
+    user: octavia
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create octavia service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: octavia
+    service_type: load-balancer
+    description: "OpenStack Octavia"
+  when: inventory_hostname == groups['controller'][0]
+
+# ENDPOINT
+
+- name: Create octavia public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: octavia
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:9876"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create octavia internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: octavia
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:9876"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create octavia admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: octavia
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:9876"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Update clouds.yaml Config
+  template:
+    src: clouds.yaml.j2
+    dest: /etc/openstack/clouds.yaml
+    mode: '0644'
+
+- name: Update os_image.py Config
+  copy:
+    src: os_image.py
+    dest: /usr/local/lib/python3.6/dist-packages/ansible/modules/cloud/openstack/os_image.py
+    mode: '0644'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create octavia-openrc file
+  template:
+    src: octavia-openrc.j2
+    dest: /root/octavia-openrc
+    mode: '0640'
+
+- name: Install Octavia packages
+  apt:
+    name: "{{ octavia.controller.packages }}"
+    state: latest
+
+# IMAGE
+
+- name: clone octavia repository
+  git:
+    repo: https://github.com/openstack/octavia
+    dest: /root/octavia
+    version: stable/ussuri
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Initiate virtualenv and install disk-builder amphora pkg
+  pip: 
+    virtualenv: /root/octavia-disk-builder
+    virtualenv_python: python3.6
+    requirements: /root/octavia/diskimage-create/requirements.txt
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Install disk-builder amphora depends pkg
+  apt:
+    name: "{{ octavia.disk.packages }}"
+    state: latest
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create ubuntu amphora image
+  shell: source /root/octavia-disk-builder/bin/activate && bash /root/octavia/diskimage-create/diskimage-create.sh -i ubuntu-minimal -s 3 -r {{ amphora_root_password }}
+  args: 
+    executable: /bin/bash
+    chdir: /root/octavia/diskimage-create
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create amphora image to openstack
+  os_image:
+    cloud: octavia
+    state: present
+    name: amphora
+    container_format: bare
+    disk_format: qcow2
+    tags: amphora
+    filename: /root/octavia/diskimage-create/amphora-x64-haproxy.qcow2
+    is_public: no
+  when: inventory_hostname == groups['controller'][0]
+
+# FLAVOR
+
+- name: Create amphora flavor
+  os_nova_flavor:
+    cloud: octavia
+    state: present
+    flavorid: 200
+    name: amphora
+    ram: 1024
+    vcpus: 1
+    disk: 3  
+    is_public: no
+  when: inventory_hostname == groups['controller'][0]
+
+# CERT
+
+- name: Create octavia certs directory
+  file:
+    path: /etc/octavia/certs
+    state: directory
+    mode: '0700'
+    owner: octavia
+    group: octavia
+  
+- name: Copy server_ca.key.pem
+  template:
+    src: server_ca.key.pem
+    dest: /etc/octavia/certs/server_ca.key.pem
+    mode: '0700'
+    owner: octavia
+    group: octavia
+
+- name: Copy server_ca.cert.pem
+  template:
+    src: server_ca.cert.pem
+    dest: /etc/octavia/certs/server_ca.cert.pem
+    mode: '0644'
+    owner: octavia
+    group: octavia
+  
+- name: Copy client_ca.cert.pem
+  template:
+    src: client_ca.cert.pem
+    dest: /etc/octavia/certs/client_ca.cert.pem
+    mode: '0644'
+    owner: octavia
+    group: octavia
+    
+- name: Copy client.cert-and-key.pem
+  template:
+    src: client.cert-and-key.pem
+    dest: /etc/octavia/certs/client.cert-and-key.pem
+    mode: '0700'
+    owner: octavia
+    group: octavia
+    
+# SEC GROUP
+
+- name: Create lb-mgmt-sec-grp
+  os_security_group:
+    cloud: octavia
+    state: present
+    name: lb-mgmt-sec-grp
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Register lb-mgmt-sec-grp id
+  shell: source /root/octavia-openrc && openstack security group list | grep lb-mgmt-sec-grp | cut -d '|' -f2
+  args:
+    executable: /bin/bash
+  register: OCTAVIA_LB_ID
+
+- name: Create lb-mgmt-sec-grp rule icmp
+  os_security_group_rule:
+    cloud: octavia
+    security_group: lb-mgmt-sec-grp
+    protocol: icmp
+    remote_ip_prefix: 0.0.0.0/0
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create lb-mgmt-sec-grp rule port 22
+  os_security_group_rule:
+    cloud: octavia
+    security_group: lb-mgmt-sec-grp
+    protocol: tcp
+    port_range_min: 22
+    port_range_max: 22
+    remote_ip_prefix: 0.0.0.0/0
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create lb-mgmt-sec-grp rule port 9443
+  os_security_group_rule:
+    cloud: octavia
+    security_group: lb-mgmt-sec-grp
+    protocol: tcp
+    port_range_min: 9443
+    port_range_max: 9443
+    remote_ip_prefix: 0.0.0.0/0
+  when: inventory_hostname == groups['controller'][0]    
+
+- name: Create lb-health-mgr-sec-grp
+  os_security_group:
+    cloud: octavia
+    state: present
+    name: lb-health-mgr-sec-grp
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create lb-health-mgr-sec-grp rule port 5555
+  os_security_group_rule:
+    cloud: octavia
+    security_group: lb-health-mgr-sec-grp
+    protocol: udp
+    port_range_min: 5555
+    port_range_max: 5555
+    remote_ip_prefix: 0.0.0.0/0
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create lb-health-mgr-sec-grp rule icmp
+  os_security_group_rule:
+    cloud: octavia
+    security_group: lb-health-mgr-sec-grp
+    protocol: icmp
+    remote_ip_prefix: 0.0.0.0/0
+  when: inventory_hostname == groups['controller'][0]
+
+# KEYPAIR
+
+- name: Create keypair for access amphora
+  os_keypair:
+    cloud: octavia
+    state: present
+    name: key-amphora
+    public_key_file: /root/.ssh/id_rsa.pub
+  when: inventory_hostname == groups['controller'][0]
+
+# DCHP 
+
+- name: Create octavia certs directory
+  file:
+    path: /etc/dhcp/octavia
+    state: directory
+    mode: '0755'
+
+- name: copy octavia dhclient.conf
+  template: 
+    src: dhclient.conf.j2
+    dest: /etc/dhcp/octavia
+    mode: '0644'
+
+# NET
+
+- name: Create lb-mgmt-net
+  os_network:
+    cloud: octavia
+    state: present
+    name: lb-mgmt-net
+    interface: internal
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Register lb-mgmt-net ID
+  shell: source /root/octavia-openrc && openstack network list | grep lb-mgmt-net | cut -d '|' -f2
+  args:
+    executable: /bin/bash
+  register: OCTAVIA_NET
+
+- name: Create lb-mgmt-subnet
+  os_subnet:
+    cloud: octavia
+    state: present
+    network_name: lb-mgmt-net
+    name: lb-mgmt-subnet
+    cidr: 172.16.0.0/24
+    allocation_pool_start: 172.16.0.10
+    allocation_pool_end: 172.16.0.254
+  when: inventory_hostname == groups['controller'][0]
+
+# PORT
+
+- name: Register subnet id
+  shell: source /root/octavia-openrc && openstack subnet show lb-mgmt-subnet -f value -c id
+  args:
+    executable: /bin/bash
+  register: OCTAVIA_SUBNET_ID
+
+- name: Cleanup resource pcs
+  shell: pcs resource cleanup
+  
+- name: Create octavia-health-manager-listen-port on each controller
+  shell: |
+    source /root/octavia-openrc && \
+    openstack port create --security-group \
+    lb-health-mgr-sec-grp --device-owner Octavia:health-mgr \
+    --host=$(hostname) -c id -f value --network lb-mgmt-net \
+    --fixed-ip subnet={{ OCTAVIA_SUBNET_ID.stdout }} octavia-health-manager-listen-port-{{ ansible_hostname }}
+  args:
+    executable: /bin/bash
+  register: OCTAVIA_PORT_ID
+
+- name: Register octavia port mac address
+  shell: source /root/octavia-openrc && openstack port show -c mac_address -f value {{ OCTAVIA_PORT_ID.stdout }}
+  args:
+   executable: /bin/bash
+  register: OCTAVIA_MAC
+
+- name: Register octavia port ip address
+  shell: source /root/octavia-openrc && openstack port show {{ OCTAVIA_PORT_ID.stdout }} -c fixed_ips -f value | cut -d "'" -f8
+  args:
+   executable: /bin/bash
+  register: OCTAVIA_IP
+
+- name: Create o-hm0 physical port
+  shell: |
+   ovs-vsctl -- --may-exist add-port br-int o-hm0 \
+   -- set Interface o-hm0 type=internal \
+   -- set Interface o-hm0 external-ids:iface-status=active \
+   -- set Interface o-hm0 external-ids:attached-mac={{ OCTAVIA_MAC.stdout }} \
+   -- set Interface o-hm0 external-ids:iface-id={{ OCTAVIA_PORT_ID.stdout }}
+  args:
+   executable: /bin/bash
+
+- name: Set 0-hm0 mac address
+  shell: ip link set dev o-hm0 address {{ OCTAVIA_MAC.stdout }}
+  args:
+   executable: /bin/bash
+
+- name: dhclient o-hm0 interface
+  shell: dhclient -v o-hm0 -cf /etc/dhcp/octavia
+  args:
+   executable: /bin/bash
+
+- name: Make octavia port permanent using systemd
+  template:
+    src: o-hm0.network.j2
+    dest: /etc/systemd/network/o-hm0.network
+    mode: '0644'
+
+- name: Make octavia interface service
+  template:
+    src: octavia-interface.service.j2
+    dest: /etc/systemd/system/octavia-interface.service
+    mode: '0644'
+
+- name: Copy octavia interface script
+  template:
+    src: octavia-interface.sh.j2
+    dest: /opt/octavia-interface.sh
+    mode: '0755'
+
+# TEMPLATE
+
+- name: Create octavia.conf config file
+  template:
+    src: octavia.conf.j2
+    dest: /etc/octavia/octavia.conf
+    mode: '0640'
+
+# DB SYNC
+
+- name: Octavia upgrade head
+  shell: octavia-db-manage --config-file /etc/octavia/octavia.conf upgrade head
+  become: yes
+  become_user: octavia
+  when: inventory_hostname == groups['controller'][0]
+
+# RESTART
+
+- name: Restart octavia service
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - octavia-api 
+    - octavia-health-manager
+    - octavia-housekeeping
+    - octavia-worker
+
+# OCTAVIA HORIZON
+
+- name: Install octavia-dashboard
+  apt:
+    name: python3-octavia-dashboard
+    state: latest
+  
+- name: Restart apache2 service
+  systemd:
+    name: apache2
+    state: restarted

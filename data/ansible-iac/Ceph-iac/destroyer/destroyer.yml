@@ -1,0 +1,255 @@
+---
+  - hosts: mons[0]
+    vars_files: ../group_vars/all.yml
+    become: true
+    tasks:
+      - name: Check ceph.conf exists
+        stat:
+          path: /etc/ceph/ceph.conf
+        register: ceph_conf
+        become_user: root
+
+      - name: Down all OSD
+        shell: "ceph osd down all"
+        when: ceph_conf.stat.exists
+        ignore_errors: yes
+        become_user: root
+
+      - name: Count osd
+        shell: "ceph osd tree|grep osd.|wc -l"
+        register: jumlah_osd
+        when: ceph_conf.stat.exists
+        ignore_errors: yes
+        become_user: root
+
+      - name: Purge all osd
+        shell: "for i in `seq 0 {{ jumlah_osd.stdout }}` ; do ceph osd purge $i --yes-i-really-mean-it  ;done"
+        when: ceph_conf.stat.exists
+        ignore_errors: yes
+        become_user: root
+
+  - hosts: osds
+    vars_files: ../group_vars/all.yml
+    become: true
+    tasks:
+      - name: Install gdisk
+        apt:
+          name: gdisk
+          state: latest
+
+      - name: Zap all disk used by osd before with sgdisk
+        shell: sgdisk -Z {{ item.data }} && sgdisk -Z {{ item.wal }}
+        become_user: root
+        with_items:
+          - "{{ osd_devices }}"
+        when: item.wal is defined
+
+      - name: Zap all disk used by osd before with sgdisk
+        become_user: root
+        command: sgdisk -Z {{ item.data }}
+        with_items:
+          - "{{ osd_devices }}"
+        when: item.wal is not defined
+
+
+      - name: Umount all mounted disk
+        shell: "umount -l /var/lib/ceph/osd/*"
+        ignore_errors: yes
+        become_user: root
+
+      - name: Clean all OSD
+        command: dmsetup remove_all -f
+        become_user: root
+
+      - name: Clean folder osd
+        shell: "rm /var/lib/ceph/osd/* -rf "
+        become_user: root
+
+      - name: Clean folder osd
+        shell: "rm /var/lib/ceph/bootstrap-osd/* -rf "
+        become_user: root
+
+      - name: Remove ceph config
+        shell: "rm /etc/ceph/* -rf"
+        become_user: root
+
+      - name: Clean Temp
+        shell: "rm /tmp/ceph* -rf && rm /tmp/monmap -rf"
+        become_user: root
+
+      - name: Zap all disk used by osd before with ceph-volume
+        command: ceph-volume lvm zap {{ item.data }} --destroy
+        with_items:
+          - "{{ osd_devices }}"
+        become_user: root
+        ignore_errors: yes
+        when: item.wal is not defined
+
+      - name: Zap all disk used by osd before with ceph-volume
+        shell: ceph-volume lvm zap {{ item.data }} --destroy && ceph-volume lvm zap {{ item.wal }} --destroy
+        with_items:
+          - "{{ osd_devices }}"
+        become_user: root
+        ignore_errors: yes
+        when: item.wal is defined
+
+      - name: Refresh disk with Partprobe
+        shell: partprobe
+        become_user: root
+
+  - hosts: ceph-nodes
+    become: true
+    tasks:
+      - name: Remove ceph config
+        shell: "rm /etc/ceph/* -rf"
+        become_user: root
+
+      - name: Clean Temp
+        shell: "rm /tmp/ceph* -rf && rm /tmp/monmap -rf"
+        become_user: root
+
+  - hosts: mons
+    become: true
+    tasks:
+      - name: Clean folder mon
+        shell: "rm /var/lib/ceph/mon/* -rf"
+        become_user: root
+
+  - hosts: mgrs
+    become: true
+    tasks:
+      - name: Clean folder mgr
+        shell: "rm /var/lib/ceph/mgr/* -rf"
+        become_user: root
+
+  - hosts: ceph-nodes
+    become: true
+    tasks:
+      - name: Stop all ceph services
+        shell: systemctl stop ceph@*
+        become_user: root
+      - name: Reload daemon
+        shell: systemctl daemon-reload
+        become_user: root
+
+  - hosts: osds
+    vars_files: ../group_vars/all.yml
+    become: true
+    tasks:
+      - name: Install gdisk
+        apt:
+          name: gdisk
+          state: latest
+
+      - name: Zap all disk used by osd before with sgdisk
+        shell: sgdisk -Z {{ item.data }} && sgdisk -Z {{ item.wal }}
+        become_user: root
+        with_items:
+          - "{{ osd_devices }}"
+        when: item.wal is defined
+
+      - name: Zap all disk used by osd before with sgdisk
+        become_user: root
+        command: sgdisk -Z {{ item.data }}
+        with_items:
+          - "{{ osd_devices }}"
+        when: item.wal is not defined
+
+
+      - name: Umount all mounted disk
+        shell: "umount -l /var/lib/ceph/osd/*"
+        ignore_errors: yes
+        become_user: root
+
+      - name: Clean all OSD
+        command: dmsetup remove_all -f
+        become_user: root
+
+      - name: Clean folder osd
+        shell: "rm /var/lib/ceph/osd/* -rf "
+        become_user: root
+
+      - name: Clean folder osd
+        shell: "rm /var/lib/ceph/bootstrap-osd/* -rf "
+        become_user: root
+
+      - name: Remove ceph config
+        shell: "rm /etc/ceph/* -rf"
+        become_user: root
+
+      - name: Clean Temp
+        shell: "rm /tmp/ceph* -rf && rm /tmp/monmap -rf"
+        become_user: root
+
+      - name: Zap all disk used by osd before with ceph-volume
+        command: ceph-volume lvm zap {{ item.data }} --destroy
+        with_items:
+          - "{{ osd_devices }}"
+        become_user: root
+        ignore_errors: yes
+        when: item.wal is not defined
+
+      - name: Zap all disk used by osd before with ceph-volume
+        shell: ceph-volume lvm zap {{ item.data }} --destroy && ceph-volume lvm zap {{ item.wal }} --destroy
+        with_items:
+          - "{{ osd_devices }}"
+        become_user: root
+        ignore_errors: yes
+        when: item.wal is defined
+
+      - name: Refresh disk with Partprobe
+        shell: partprobe
+        become_user: root
+
+  - hosts: ceph-nodes
+    become: true
+    tasks:
+      - name: Remove ceph config
+        shell: "rm /etc/ceph/* -rf"
+        become_user: root
+
+      - name: Clean Temp
+        shell: "rm /tmp/ceph* -rf && rm /tmp/monmap -rf"
+        become_user: root
+
+  - hosts: mons
+    become: true
+    tasks:
+      - name: Clean folder mon
+        shell: "rm /var/lib/ceph/mon/* -rf"
+        become_user: root
+
+  - hosts: mgrs
+    become: true
+    tasks:
+      - name: Clean folder mgr
+        shell: "rm /var/lib/ceph/mgr/* -rf"
+        become_user: root
+
+  - hosts: ceph-nodes
+    become: true
+    tasks:
+      - name: Stop all ceph services
+        shell: systemctl stop ceph@*
+        become_user: root
+      - name: Reload daemon
+        shell: systemctl daemon-reload
+        become_user: root
+
+  - hosts: ceph-nodes
+    vars_files: ../group_vars/all.yml
+    become: yes
+    tasks:
+       - name: Create List of mon nodes to be added into Cluster
+         set_fact: monnamelist={%for host in groups['ceph-nodes']%}"{{ hostvars[host]['ansible_hostname'] }}"{% if not loop.last %},{% endif %}{% endfor %}
+         run_once: true
+
+       - name: Procces line list of mon hostname with bash
+         shell: echo "{{ monnamelist }}"|tr -d '"'|sed -r 's/,/ /g'
+         register: mon_hostname
+         run_once: true
+
+       - name: Destroy the entire cluster
+         become_user: "{{ lookup('env','USER') }}"
+         shell: "ceph-deploy purge {{ mon_hostname.stdout }}"
+         run_once: true

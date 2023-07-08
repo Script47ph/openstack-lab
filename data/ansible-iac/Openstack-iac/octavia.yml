@@ -1,0 +1,4 @@
+- name: Apply role Octavia
+  hosts: controller
+  roles:
+    - {role: 'octavia', tags: 'octavia'}

@@ -1,0 +1,195 @@
+---
+# MYSQL
+
+- name: Create magnum database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: magnum
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant magnum database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: magnum
+    password: "{{ mysql_magnum_password }}"
+    append_privs: true
+    priv: 'magnum.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant magnum database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: magnum
+    password: "{{ mysql_magnum_password }}"
+    append_privs: true
+    priv: 'magnum.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant magnum database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: magnum
+    password: "{{ mysql_magnum_password }}"
+    append_privs: true
+    priv: 'magnum.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+# USER
+
+- name: Create magnum user
+  os_user:
+    cloud: openstack
+    state: present
+    name: magnum
+    password: "{{ openstack_magnum_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the magnum user
+  os_user_role:
+    cloud: openstack
+    user: magnum
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create magnum service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: magnum
+    service_type: container-infra
+    description: "OpenStack Container Infrastructure Management Service"
+  when: inventory_hostname == groups['controller'][0]
+
+# ENDPOINT
+
+- name: Create magnum public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: magnum
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:9511/v1"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create magnum internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: magnum
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:9511/v1"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create magnum admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: magnum
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:9511/v1"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+# DOMAIN
+
+- name: Create domain magnum
+  os_keystone_domain:
+    cloud: openstack 
+    state: present
+    name: magnum
+    description: "Owns users and projects created by magnum"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create magnum_domain_admin user
+  os_user:
+    cloud: openstack
+    state: present
+    name: magnum_domain_admin
+    password: "{{ openstack_magnum_domain_admin_password }}"
+    update_password: on_create
+    domain: magnum
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the magnum_domain_admin user
+  os_user_role:
+    cloud: openstack
+    user: magnum_domain_admin
+    domain: magnum
+    role: admin
+  when: inventory_hostname == groups['controller'][0]
+
+# INSTALL PKG
+
+- name: Install magnum packages
+  apt:
+    name: "{{ magnum.controller.packages }}"
+    state: latest
+
+# TEMPLATE
+
+- name: Create magnum configuration file
+  template:
+    src: magnum.conf.j2
+    dest: /etc/magnum/magnum.conf
+    group: magnum
+
+# POPULATE DB
+
+- name: Populate magnum db
+  shell: magnum-db-manage upgrade
+  become: yes
+  become_user: magnum
+  when: inventory_hostname == groups['controller'][0]
+
+# RESTART
+
+- name: Restart magnum service
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - magnum-api
+    - magnum-conductor
+
+# HAPROXY
+
+- name: Add Magnum listener
+  blockinfile:
+    path: /etc/haproxy/haproxy.cfg
+    marker: ""
+    block: |
+        # MAGNUM
+
+        listen magnum_api_cluster
+          bind {{ internal_vip_address }}:9511
+          bind {{ public_vip_address }}:9511
+          balance  source
+          option  tcpka
+          option  httpchk
+          option  tcplog
+            {% for node in groups['controller'] %}
+            server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:9511 check inter 2000 rise 2 fall 5
+            {% endfor %}
+    
+- name: Restart haproxy service
+  systemd:
+    name: haproxy
+    state: restarted

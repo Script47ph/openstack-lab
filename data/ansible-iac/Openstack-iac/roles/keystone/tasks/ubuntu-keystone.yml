@@ -1,0 +1,168 @@
+---
+
+- name: Create keystone database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: keystone
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant keystone database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: keystone
+    password: "{{ mysql_keystone_password }}"
+    append_privs: true
+    priv: 'keystone.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant keystone database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: keystone
+    password: "{{ mysql_keystone_password }}"
+    append_privs: true
+    priv: 'keystone.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant keystone database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: keystone
+    password: "{{ mysql_keystone_password }}"
+    append_privs: true
+    priv: 'keystone.*:ALL'
+    host: "%"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Install keystone packages
+  apt:
+    name: "{{ keystone_packages }}"
+    state: latest
+
+- name: Change apache2 listen port
+  lineinfile:
+    path: /etc/apache2/ports.conf
+    regexp: '^Listen'
+    line: Listen {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:80
+
+- name: Create keystone configuration file
+  template:
+    src: keystone.conf.j2
+    dest: /etc/keystone/keystone.conf
+    mode: '0640'
+
+- name: Create ansible temporary directory
+  file:
+    path: /var/lib/keystone/.ansible/tmp
+    state: directory
+    mode: 0755
+  become: yes
+  become_user: keystone
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create wsgi keystone configuration file
+  template:
+    src: wsgi-keystone.conf.j2
+    dest: /etc/apache2/sites-available/keystone.conf
+    mode: '0644'
+
+- name: Populate keystone database
+  shell: keystone-manage db_sync
+  become: yes
+  become_user: keystone
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Initialize fernet
+  shell: keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Initialize credential
+  shell: keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Bootstrap keystone
+  shell: keystone-manage bootstrap --bootstrap-password {{ openstack_admin_password }} --bootstrap-admin-url http://{{ admin_vip_hostname }}:5000/v3/ --bootstrap-internal-url http://{{ internal_vip_hostname }}:5000/v3/ --bootstrap-public-url http://{{ public_vip_hostname }}:5000/v3/ --bootstrap-region-id "{{ region_name }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Check the keystone resource creation run once
+  stat:
+    path: /var/log/hacluster/resource_keystone.log
+  register: resource_keystone
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create keystone resource
+  shell: pcs resource create wsgi-keystone systemd:apache2 clone interleave=true > /var/log/hacluster/resource_keystone.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - resource_keystone.stat.exists == False
+  
+- name: cleanup resource
+  shell: pcs resource cleanup
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: wait 10s for savely start apache service
+  pause:
+    seconds: 10
+
+- name: Restart apache2 using pcs
+  shell: pcs resource restart wsgi-keystone-clone
+  ignore_errors: yes
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Check apache2 service started
+  service:
+    name: apache2
+    state: started
+  when: "'controller' in group_names"
+
+- name: Create os client env script
+  template:
+    src: admin-openrc.j2
+    dest: /root/admin-openrc
+    mode: '0640'
+
+- name: Create openstack directory
+  file:
+    path: /etc/openstack
+    state: directory
+    mode: 0755
+
+- name: Create clouds.yaml
+  template:
+    src: clouds.yaml.j2
+    dest: /etc/openstack/clouds.yaml
+    mode: '0644'
+
+- name: Waiting for keystone API to be ready
+  wait_for: timeout=10
+  delegate_to: localhost
+
+- name: Create service project
+  os_project:
+    cloud: openstack
+    state: present
+    name: service
+    description: "Service Project"
+    domain_id: default
+    enabled: True
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create user role
+  os_keystone_role:
+    cloud: openstack
+    state: present
+    name: user
+  when: inventory_hostname == groups['controller'][0]

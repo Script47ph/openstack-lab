@@ -1,0 +1,108 @@
+[DEFAULT]
+osapi_compute_listen = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+metadata_listen = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+my_ip = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+state_path = /var/lib/nova
+enabled_apis = osapi_compute,metadata
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+log_dir = /var/log/nova
+cpu_allocation_ratio = 4.0
+ram_allocation_ratio = 1.5
+allow_resize_to_same_host = true
+
+[oslo_messaging_rabbit]
+rabbit_hosts={% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}
+
+rabbit_retry_interval=1
+rabbit_retry_backoff=2
+rabbit_max_retries=0
+rabbit_durable_queues=true
+rabbit_ha_queues=true
+
+[api]
+auth_strategy = keystone
+
+[glance]
+api_servers = http://{{ internal_vip_address }}:9292
+cafile =
+num_retries = 3
+debug = False
+
+[cinder]
+catalog_info = volumev3:cinderv3:internalURL
+os_region_name = {{ region_name }}
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+auth_type = password
+project_domain_name = Default
+user_domain_id = default
+project_name = service
+username = cinder
+password = {{openstack_cinder_password}}
+cafile =
+
+[oslo_concurrency]
+lock_path = $state_path/tmp
+
+[api_database]
+connection = mysql+pymysql://nova:{{ openstack_nova_password }}@{{ internal_vip_address }}/nova_api
+
+[database]
+connection = mysql+pymysql://nova:{{ openstack_nova_password }}@{{ internal_vip_address }}/nova
+
+[keystone_authtoken]
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = nova
+password = {{ openstack_nova_password }}
+
+[placement]
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+os_region_name = {{ region_name }}
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = placement
+password = {{ openstack_placement_password }}
+
+[wsgi]
+api_paste_config = /etc/nova/api-paste.ini
+
+[neutron]
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+region_name = {{ region_name }}
+project_name = service
+username = neutron
+password = {{ openstack_neutron_password }}
+service_metadata_proxy = True
+metadata_proxy_shared_secret = {{ metadata_proxy_secret }}
+
+[vnc]
+enabled = true
+server_listen = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+server_proxyclient_address = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+novncproxy_host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+novncproxy_port = 6080
+novncproxy_base_url = http://{{ public_vip_hostname }}:6080/vnc_auto.html
+#ssl_only=true
+#cert=/etc/ssl/certs/cert.dce.bri.co.id.pem
+
+[libvirt]
+images_rbd_pool = vms
+images_type = rbd
+images_rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_user = cinder
+rbd_secret_uuid = {{ rbd_secret_uuid }}
+live_migration_uri = qemu+ssh://root@%s/system
+
+[scheduler]
+discover_hosts_in_cells_interval = 300

@@ -1,0 +1,35 @@
+- name: clone octavia repository
+  git:
+    repo: https://github.com/openstack/octavia
+    dest: /root/octavia
+    version: stable/ussuri
+  when: inventory_hostname == groups['controller'][0]
+- name: Initiate virtualenv and install disk-builder amphora pkg
+  pip: 
+    virtualenv: /root/octavia-disk-builder
+    virtualenv_python: python3.6
+    requirements: /root/octavia/diskimage-create/requirements.txt
+  when: inventory_hostname == groups['controller'][0]
+- name: Install disk-builder amphora depends pkg
+  apt:
+    name: "{{ octavia.disk.packages }}"
+    state: latest
+  when: inventory_hostname == groups['controller'][0]
+- name: Create ubuntu amphora image
+  shell: source /root/octavia-disk-builder/bin/activate && bash /root/octavia/diskimage-create/diskimage-create.sh -i ubuntu-minimal -s 3 -r {{ amphora_root_password }}
+  args: 
+    executable: /bin/bash
+    chdir: /root/octavia/diskimage-create
+  when: inventory_hostname == groups['controller'][0]
+- name: Create amphora image to openstack
+  os_image:
+    cloud: octavia
+    state: present
+    name: amphora
+    container_format: bare
+    disk_format: qcow2
+    tags: amphora
+    filename: /root/octavia/diskimage-create/amphora-x64-haproxy.qcow2
+    is_public: no
+  when: inventory_hostname == groups['controller'][0]
+

@@ -1,0 +1,6 @@
+---
+customize_etc_hosts: True
+debian_pkg_install:
+  - git
+  - chrony
+  - unzip

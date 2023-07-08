@@ -1,0 +1,12 @@
+---
+  - name: Enable Ceph dashboard
+    shell: "ceph mgr module enable dashboard --force"
+    when: ceph_dashboard == "yes"
+
+  - name: Create self-sign certificate
+    shell: "ceph dashboard create-self-signed-cert"
+    when: ceph_dashboard == "yes"
+
+  - name: Setup username and password ceph
+    shell: "ceph dashboard ac-user-create {{ ceph_username }} {{ ceph_password }} administrator"
+    when: ceph_dashboard == "yes"

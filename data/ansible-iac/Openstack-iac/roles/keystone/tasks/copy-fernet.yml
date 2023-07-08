@@ -1,0 +1,38 @@
+---
+
+- name: Create a directory credentials-key
+  file:
+    path: /etc/keystone/credential-keys
+    state: directory
+    mode: '0700'
+    owner: keystone
+    group: keystone
+
+- name: Create a directory fernet-key
+  file:
+    path: /etc/keystone/fernet-keys
+    state: directory
+    mode: '0700'
+    owner: keystone
+    group: keystone
+
+- name: Copy keystone credential-keys & fernet-keys to other controller
+  become: yes
+  become_user: "{{ exec_user }}"
+  shell: "sudo cat {{ item.0 }} | ssh {{ hostvars[item.1]['ansible_hostname'] }} sudo tee {{ item.0 }}"
+  with_nested:
+    - ["/etc/keystone/credential-keys/0", "/etc/keystone/credential-keys/1", "/etc/keystone/fernet-keys/0", "/etc/keystone/fernet-keys/1"]
+    - "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Change key permission
+  file:
+    path: "{{ item }}"
+    owner: keystone
+    group: keystone
+    mode: '0600'
+  with_items:
+    - "/etc/keystone/credential-keys/0"
+    - "/etc/keystone/credential-keys/1"
+    - "/etc/keystone/fernet-keys/0"
+    - "/etc/keystone/fernet-keys/1"

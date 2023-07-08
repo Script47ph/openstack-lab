@@ -1,0 +1,15 @@
+  - name: Prepare osd data device
+    become_user: "{{ lookup('env','USER') }}"
+    command: "ceph-deploy osd create --bluestore --data {{ item.data }} {{ ansible_hostname }}"
+    args:
+      chdir: "/root/"
+    with_items: "{{ osd_devices }}"
+    when: item.wal is not defined
+
+  - name: Prepare osd data device
+    become_user: "{{ lookup('env','USER') }}"
+    command: "ceph-deploy osd create --bluestore --data {{ item.data }} --block-wal {{ item.wal }} {{ ansible_hostname }}"
+    args:
+      chdir: "/root/"
+    with_items: "{{ osd_devices }}"
+    when: item.wal is defined

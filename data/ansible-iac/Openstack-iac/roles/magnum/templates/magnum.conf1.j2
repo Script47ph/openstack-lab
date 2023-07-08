@@ -1,0 +1,91 @@
+[DEFAULT]
+debug = False
+state_path = /var/lib/magnum
+log_dir = /var/log/kolla/magnum
+host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+
+
+[api]
+port = 9511
+host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+workers = 4
+
+[database]
+connection = mysql+pymysql://magnum:{{ openstack_magnum_password }}@{{ internal_vip_address }}:3306/magnum
+max_retries = -1
+
+[cinder]
+default_docker_volume_type = docker_volume
+
+[magnum_client]
+region_name = {{ region_name }}
+endpoint_type = publicURL
+
+[heat_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[octavia_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[cinder_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[glance_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[neutron_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[nova_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[keystone_auth]
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+user_domain_name = Default
+project_domain_name = Default
+project_name = service
+password = {{openstack_magnum_password  }}
+username = magnum
+auth_type = password
+
+[keystone_authtoken]
+auth_version = v3
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000/v3
+auth_url = http://{{ internal_vip_hostname }}:5000
+auth_type = password
+project_domain_name = Default
+user_domain_name = Default
+project_name = service
+username = magnum
+password = {{ openstack_magnum_password }}
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+
+[trust]
+trustee_domain_admin_password = {{ openstack_magnum_domain_admin_password }}
+trustee_domain_admin_name = magnum_domain_admin
+trustee_domain_name = magnum
+trustee_keystone_region_name = {{ region_name }}
+trustee_keystone_interface = public
+cluster_user_trust = True
+
+[oslo_concurrency]
+lock_path = /var/lib/magnum/tmp
+
+[oslo_middleware]
+enable_proxy_headers_parsing = True
+
+[certificates]
+cert_manager_type = x509keypair
+
+[oslo_messaging_notifications]
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+
+driver = noop

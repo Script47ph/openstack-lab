@@ -1,0 +1,432 @@
+---
+
+- name: Create nova database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova_api database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova_api
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova_cell0 database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova_cell0
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create placement database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: placement
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+##### nova Database #####
+
+- name: Grant nova database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+##### nova_api Database #####
+
+- name: Grant nova_api database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova_api.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova_api database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova_api.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova_api database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova_api.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+##### nova_cell0 Database #####
+
+- name: Grant nova_cell0 database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova_cell0.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova_cell0 database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova_cell0.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova_cell0 database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: nova
+    password: "{{ mysql_nova_password }}"
+    append_privs: true
+    priv: 'nova_cell0.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+##### nova_placement Database #####
+
+- name: Grant placement database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: placement
+    password: "{{ mysql_placement_password }}"
+    append_privs: true
+    priv: 'placement.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant placement database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: placement
+    password: "{{ mysql_placement_password }}"
+    append_privs: true
+    priv: 'placement.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant nova_placement database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: placement
+    password: "{{ mysql_placement_password }}"
+    append_privs: true
+    priv: 'placement.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova user
+  os_user:
+    cloud: openstack
+    state: present
+    name: nova
+    password: "{{ openstack_nova_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the nova user
+  os_user_role:
+    cloud: openstack
+    user: nova
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: nova
+    service_type: compute
+    description: "OpenStack Compute Service"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: nova
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:8774/v2.1/%(tenant_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: nova
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:8774/v2.1/%(tenant_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create nova admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: nova
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:8774/v2.1/%(tenant_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create placement user
+  os_user:
+    cloud: openstack
+    state: present
+    name: placement
+    password: "{{ openstack_placement_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the placement user
+  os_user_role:
+    cloud: openstack
+    user: placement
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create placement service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: placement
+    service_type: placement
+    description: "Placement API"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create placement public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: placement
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:8778"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create placement internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: placement
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:8778"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create placement admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: placement
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:8778"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Install nova controller packages
+  apt:
+    name: "{{ nova.controller.packages }}"
+    state: latest
+  when: "'controller' in group_names" 
+
+- name: Install nova compute packages
+  apt:
+    name: "{{ nova.compute.packages }}"
+    state: latest
+  when: "'compute' in group_names"
+
+- name: Create nova configuration file
+  template:
+    src: nova.conf.j2
+    dest: /etc/nova/nova.conf
+
+- name: Create placement configuration file
+  template:
+    src: placement.conf.j2
+    dest: /etc/placement/placement.conf
+  when: "'controller' in group_names"
+
+- name: Change placement apache listen addreess
+  lineinfile:
+    path: /etc/apache2/sites-available/placement-api.conf
+    regexp: 'Listen\s+8778'
+    line: "Listen {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:8778"
+    backrefs: yes
+  when: "'controller' in group_names"
+
+- name: Restart apache2 using pcs
+  shell: pcs resource restart wsgi-keystone-clone
+  ignore_errors: yes
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: wait 10s for savely start apache service
+  pause:
+    seconds: 10
+
+- name: Check apache2 service started
+  service:
+    name: apache2
+    state: started
+  when: "'controller' in group_names"
+
+- name: Populate placement db sync
+  shell: placement-manage db sync
+  become: yes
+  become_user: placement
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Populate api_db sync
+  shell: nova-manage api_db sync
+  become: yes
+  become_user: nova
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Populate cell_v2 map_cell0
+  shell: nova-manage cell_v2 map_cell0
+  become: yes
+  become_user: nova
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Populate db sync
+  shell: nova-manage db sync
+  become: yes
+  become_user: nova
+  when: inventory_hostname == groups['controller'][0]
+
+# Exec only once
+- name: Populate cell_v2 create_cell
+  shell: nova-manage cell_v2 create_cell --name=cell1 --verbose
+  become: yes
+  become_user: nova
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Restart nova-api service
+  service:
+    name: nova-api
+    state: restarted
+    enabled: yes
+  when: "'controller' in group_names"
+
+- name: Restart nova-scheduler service
+  service:
+    name: nova-scheduler
+    state: restarted
+    enabled: yes
+  when: "'controller' in group_names"
+
+- name: Restart nova-conductor service
+  service:
+    name: nova-conductor
+    state: restarted
+    enabled: yes
+  when: "'controller' in group_names"
+
+- name: Restart nova-novncproxy service
+  service:
+    name: nova-novncproxy
+    state: restarted
+    enabled: yes
+  when: "'controller' in group_names"
+
+- name: Restart nova-compute service
+  service:
+    name: nova-compute
+    state: restarted
+    enabled: yes
+  when: "'compute' in group_names"
+
+- name: Nova compute host discovery
+  shell: nova-manage cell_v2 discover_hosts
+  become: yes
+  become_user: nova
+  when: inventory_hostname == groups['controller'][0]
+
+# Nova novnc cert 
+
+- name: Copy certificate file
+  template:
+    src: cert.dce.bri.co.id.pem
+    dest: /etc/ssl/certs/cert.dce.bri.co.id.pem
+    mode: '0644'

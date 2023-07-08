@@ -1,0 +1,4 @@
+---
+memcached_pkg:
+    - memcached 
+    - python3-memcache

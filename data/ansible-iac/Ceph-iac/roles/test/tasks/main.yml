@@ -1,0 +1,11 @@
+  - name: Generate /etc/hosts for all of the nodes
+    become_user: root
+    blockinfile:
+      dest: /etc/hosts
+      marker: "# {mark} ANSIBLE CEPH GENERATED HOSTS"
+      block: |
+         {% for item in play_hosts %}
+         {{ hostvars[item]['ansible_' ~ cluster_storage_interface]['ipv4']['address'] }} {{ hostvars[item]['ansible_hostname'] }}.cluster-storage.{{ region_name }}.bri.co.id
+         {{ hostvars[item]['ansible_' ~ public_storage_interface]['ipv4']['address'] }} {{ hostvars[item]['ansible_hostname'] }}.public-storage.{{ region_name }}.bri.co.id {{ hostvars[item]['ansible_hostname'] }}
+         {% endfor %}
+    become: True

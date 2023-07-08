@@ -1,0 +1,19 @@
+---
+  - name: Create List of mon nodes to be added into Cluster
+    set_fact: monnamelist={%for host in groups['mons']%}"{{ hostvars[host]['ansible_hostname'] }}"{% if not loop.last %},{% endif %}{% endfor %}
+
+  - name: Procces line list of mon hostname with bash
+    shell: echo "{{ monnamelist }}"|tr -d '"'|sed -r 's/,/ /g'
+    register: mon_hostname
+
+  - name: Create Ceph Configuration and Keyring
+    shell: "ceph-deploy new --no-ssh-copykey --public-network {{ public_network }} --cluster-network {{ cluster_network }} {{ mon_hostname.stdout }}"
+
+  - name: Install and Initiate Ceph Package (Mon)
+    shell: "ceph-deploy install --mon --release {{ ceph_version }} {{ mon_hostname.stdout }}"
+
+  - name: Monitor init
+    shell: "ceph-deploy --overwrite-conf mon create-initial"
+
+  - name: Copy Ceph Configuration and Keyring
+    shell: "ceph-deploy admin {{ mon_hostname.stdout }}"

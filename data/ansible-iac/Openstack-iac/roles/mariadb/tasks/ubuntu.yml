@@ -1,0 +1,237 @@
+- name: Install pre-req packages
+  apt:
+    name:
+      - "apt-transport-https"
+      - "software-properties-common"
+      - "python3-mysqldb"
+      - "rsync"
+      - "python3-pymysql"
+    state: "present"
+
+- name: Import MariaDB GPG Key
+  shell: apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
+
+- name: Import MariaDB GPG Key
+  shell: add-apt-repository "deb [arch=amd64,arm64,ppc64el] http://mariadb.mirror.liquidtelecom.com/repo/10.4/ubuntu $(lsb_release -cs) main"
+
+- name: Update apt-get repo and cache
+  apt: update_cache=yes
+
+- name: Install MariaDB Server
+  apt:
+    name: 
+      - mariadb-server
+      - mariadb-client
+    state: latest
+
+- name: Create mariadb configuration file
+  template:
+    src: galera.cnf.j2
+    dest: /etc/mysql/conf.d/galera.cnf
+    mode: '0644'
+
+- name: Create mariadb 50-server.cnf configuration file
+  template:
+    src: 50-server.cnf.j2
+    dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+    mode: '0644'
+
+#- name: change mariadb bind-address
+#  ini_file:
+#   path: /etc/mysql/mariadb.conf.d/50-server.cnf
+#    section: mysqld
+#    option: bind-address
+#    value: "{{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}"
+#    mode: '0644'
+#    backup: yes
+ 
+#- name: change mariadb default character set to utf8
+#  ini_file:
+#    path: /etc/mysql/mariadb.conf.d/50-server.cnf
+#    section: mysqld
+#    option: character-set-server
+#    value: utf8
+#    mode: '0644'
+
+#- name: change mariadb default character set to utf8
+#  ini_file:
+    #path: /etc/mysql/mariadb.conf.d/50-server.cnf
+    #section: mysqld
+    #option: collation-server
+    #value: utf8_general_ci
+    #mode: '0644'
+  
+    
+- name: Stop MariaDB on slave node
+  systemd:
+    name: mariadb
+    state: stopped
+
+- name: Wait 10 seconds to safely shutdown all slave mariadb nodes
+  pause:
+    seconds: 10
+
+- name: Check galera_new_cluster run once
+  stat:
+    path: /var/log/mysql/galera_new_cluster.log
+  register: galera_new_cluster
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Bootstrap first MariaDB Galera cluster node
+  shell: /usr/bin/galera_new_cluster && touch /var/log/mysql/galera_new_cluster.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - galera_new_cluster.stat.exists == False 
+
+- name: Wait 10 seconds to safely shutdown master mariadb nodes
+  pause:
+    seconds: 10
+
+- name: Check the other MariaDB Galera cluster nodes
+  stat:
+    path: /var/log/mysql/galera_new_cluster.log
+  register: check_galera_nodes
+  when: inventory_hostname != groups['controller'][0]
+
+- name: Run check galera nodes
+  copy:
+    content: "{{ansible_date_time.date}} galera nodes was executed!"
+    dest: /var/log/mysql/galera_new_cluster.log
+    force: no
+    group: sys
+    owner: root
+    mode: 0555
+  when:
+    - inventory_hostname != groups['controller'][0]
+    - check_galera_nodes.stat.exists == False
+
+- name: Start the other MariaDB Galera cluster nodes
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+  when:
+    - inventory_hostname != groups['controller'][0]
+    - check_galera_nodes.stat.exists == False
+
+- name: Check MySQL Secure Installation
+  stat:
+    path: /var/log/mysql/secure_installation.log
+  register: mysql_secure_installation
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Run MySQL Secure Installation once
+  copy:
+    content: "{{ansible_date_time.date}} MySQL Secure Installation was executed!"
+    dest: /var/log/mysql/secure_installation.log
+    force: no
+    group: sys
+    owner: root
+    mode: 0555
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Change MariaDB root password
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_old_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    name: root
+    password: "{{ mysql_root_password }}"
+    state: present
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Deletes anonymous MySQL server user for ansible_fqdn
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    user: ""
+    host: "{{ ansible_fqdn }}"
+    state: absent
+  when: 
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Deletes anonymous MySQL server user for localhost
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{mysql_default_port}}"
+    user: ""
+    state: absent
+  when: 
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Secures the MySQL root user for IPV6 localhost (::1)
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    user: root
+    password: "{{ mysql_root_password }}"
+    host: "::1"
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Secures the MySQL root user for IPV4 localhost (127.0.0.1)
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    user: root
+    password: "{{ mysql_root_password }}"
+    host: 127.0.0.1
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Secures the MySQL root user for localhost domain (localhost)
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    user: root
+    password: "{{ mysql_root_password }}"
+    host: localhost
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Secures the MySQL root user for server_hostname domain
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    user: root
+    password: "{{ mysql_root_password }}"
+    host: "{{ ansible_fqdn }}"
+  when: 
+    - inventory_hostname == groups['controller'][0]
+    - mysql_secure_installation.stat.exists == False
+
+- name: Removes the MySQL test database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    login_port: "{{ mysql_default_port }}"
+    db: test
+    state: absent
+  when: 
+     - inventory_hostname == groups['controller'][0]
+     - mysql_secure_installation.stat.exists == False
+

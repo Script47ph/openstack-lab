@@ -1,0 +1,10 @@
+clouds:
+  openstack:
+    auth:
+      username: admin
+      project_name: admin
+      password: {{ openstack_admin_password }}
+      auth_url: http://{{ internal_vip_hostname }}:5000/v3
+      user_domain_name: default
+      project_domain_name: default
+    identity_api_version: 3

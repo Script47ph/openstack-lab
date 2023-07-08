@@ -1,0 +1,11 @@
+OVN_CTL_OPTS=" \
+--db-nb-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} \
+--db-nb-cluster-local-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} \
+--db-nb-cluster-remote-addr={{ groups['controller'][0] }} \
+--db-nb-create-insecure-remote=yes \
+--ovn-northd-nb-db={% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6641{% if not loop.last %},{% endif %}{% endfor %} \
+--db-sb-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} \
+--db-sb-cluster-local-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} \
+--db-sb-cluster-remote-addr={{ groups['controller'][0] }} \
+--db-sb-create-insecure-remote=yes \
+--ovn-northd-sb-db={% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6641{% if not loop.last %},{% endif %}{% endfor %}"

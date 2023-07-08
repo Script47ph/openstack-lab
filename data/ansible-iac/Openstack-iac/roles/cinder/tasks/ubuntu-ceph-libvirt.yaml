@@ -1,0 +1,20 @@
+---
+- name: Install libvirt package
+  apt:
+    name: "{{ cinder.compute.packages }}"
+    state: latest
+
+- name: Start libvirt service
+  service: name=libvirtd state=started enabled=yes
+
+- name: Copy secret
+  template: src=secret.xml.j2 dest=/tmp/secret.xml
+
+- name: Create secret
+  shell: virsh secret-define --file /tmp/secret.xml
+
+- name: Create temporary secret key
+  shell: ceph auth get-key client.cinder > /tmp/client.cinder.key
+  
+- name: Set value
+  shell: virsh secret-set-value --secret {{ rbd_secret_uuid }} --base64 $(cat /tmp/client.cinder.key) && rm /tmp/client.cinder.key /tmp/secret.xml

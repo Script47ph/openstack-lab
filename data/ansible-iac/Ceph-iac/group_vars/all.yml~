@@ -1,0 +1,25 @@
+cluster_storage_interface: ens9 # Bri environment
+public_storage_interface: ens8 # Bri environment
+region_name: dce # Bri environment
+public_network: 10.0.238.0/24
+cluster_network: 10.0.239.0/24
+ceph_version: 15.2.17
+### SSH COPY-id
+#if you wanna use this feature make sure you fiel all the ssh variable
+ssh_password: rahasia
+ssh_user: btech
+
+
+### Ceph dashboard
+ceph_dashboard: "no" # yes or no
+ceph_username: admin
+ceph_password: zHhTKL2:GLcD898^
+
+######
+# OSD
+######
+
+#### variable di bawah akan membuat disk osd data dan wal
+osd_devices:
+  - data: "/dev/vdb"
+  - data: "/dev/vdc"

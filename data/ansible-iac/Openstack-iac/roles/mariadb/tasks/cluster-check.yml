@@ -1,0 +1,46 @@
+---
+
+- name: Create clustercheck configuration file
+  template:
+    src: clustercheck-conf.j2
+    dest: /etc/default/clustercheck
+    mode: '0644'
+  notify: restart xinetd
+
+- name: Create clustercheck script file
+  template:
+    src: clustercheck.j2
+    dest: /usr/bin/clustercheck
+    mode: 0750
+  notify: restart xinetd
+
+- name: Add galera-monitor service to /etc/service
+  shell: 'echo "galera-monitor        9200/tcp                # mysqlchk" >> /etc/services'
+
+- name: Set clustercheck user password
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: clustercheck
+    password: "{{ mysql_clustercheck_password }}"
+    priv: '*.*:PROCESS'
+    update_password: on_create
+    state: present
+#  ignore_errors: yes
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Create galera-monitor service configuration file
+  template:
+    src: galera-monitor.j2
+    dest: /etc/xinetd.d/galera-monitor
+    mode: '0644'
+  notify: restart xinetd
+
+- name: Start xinetd service
+  service:
+    name: xinetd
+    state: started
+    enabled: yes
+

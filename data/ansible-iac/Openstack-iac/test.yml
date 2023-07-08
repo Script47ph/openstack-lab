@@ -1,0 +1,12 @@
+---
+
+- name: Apply role prechecks
+  hosts: all
+  roles:
+    - {role: 'prechecks', tags: 'prechecks'}
+
+- name: Apply role neutron
+  hosts: controller,compute
+  roles:
+    - {role: 'neutron', tags: 'neutron'}
+

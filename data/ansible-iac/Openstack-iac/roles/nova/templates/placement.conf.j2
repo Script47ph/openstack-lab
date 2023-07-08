@@ -1,0 +1,36 @@
+[DEFAULT]
+debug = False
+state_path = /var/lib/placement
+osapi_compute_listen = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+my_ip = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+
+[api]
+use_forwarded_for = true
+
+[oslo_middleware]
+enable_proxy_headers_parsing = True
+
+[oslo_concurrency]
+lock_path = /var/lib/placement/tmp
+
+[placement_database]
+connection = mysql+pymysql://placement:{{ openstack_placement_password }}@{{ internal_vip_address }}/placement
+max_retries = -1
+
+[cache]
+backend = oslo_cache.memcache_pool
+enabled = True
+memcache_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+
+[keystone_authtoken]
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000
+auth_url = http://{{ internal_vip_hostname }}:5000
+auth_type = password
+project_domain_id = default
+user_domain_id = default
+project_name = service
+username = placement
+password = {{ openstack_placement_password }}
+cafile =

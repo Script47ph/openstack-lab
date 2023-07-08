@@ -1,0 +1,16 @@
+---
+octavia:
+  controller:
+    packages:
+      - octavia-api
+      - octavia-health-manager 
+      - octavia-housekeeping
+      - octavia-worker
+      - python3-octavia
+      - python3-octaviaclient
+      - virtualenv
+  disk:
+    packages:
+      - qemu-utils 
+      - kpartx 
+      - debootstrap

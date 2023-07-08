@@ -1,0 +1,73 @@
+[DEFAULT]
+debug = False
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+use_stderr = True
+
+[application_credential]
+[assignment]
+[auth]
+
+[cache]
+backend = oslo_cache.memcache_pool
+enabled = True
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+
+[catalog]
+[cors]
+[credential]
+
+[database]
+connection = mysql+pymysql://keystone:{{ mysql_keystone_password }}@{{ internal_vip_address }}/keystone
+max_retries = -1
+
+[domain_config]
+[endpoint_filter]
+[endpoint_policy]
+
+[eventlet_server]
+bind_host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+public_bind_host = {{ hostvars[inventory_hostname]['ansible_' ~ public_api_interface]['ipv4']['address'] }}
+admin_bind_host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+
+[federation]
+[fernet_tokens]
+[healthcheck]
+[identity]
+[identity_mapping]
+[ldap]
+[matchmaker_redis]
+[memcache]
+[oauth1]
+[oslo_messaging_amqp]
+[oslo_messaging_kafka]
+
+[oslo_messaging_notifications]
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+driver = noop
+
+[oslo_messaging_rabbit]
+[oslo_messaging_zmq]
+
+[oslo_middleware]
+enable_proxy_headers_parsing = True
+
+[oslo_policy]
+[paste_deploy]
+[policy]
+[profiler]
+[resource]
+[revoke]
+[role]
+[saml]
+[security_compliance]
+[shadow_users]
+[signing]
+
+[token]
+provider = fernet
+
+
+[tokenless_auth]
+[trust]
+[unified_limit]

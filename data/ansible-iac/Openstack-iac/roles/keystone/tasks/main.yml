@@ -1,0 +1,3 @@
+---
+- import_tasks: ubuntu-keystone.yml
+- import_tasks: copy-fernet.yml

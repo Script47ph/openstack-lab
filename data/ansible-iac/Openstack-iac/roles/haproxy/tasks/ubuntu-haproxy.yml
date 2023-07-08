@@ -1,0 +1,29 @@
+---
+- name: Install haproxy package
+  apt:
+    name: haproxy
+    state: latest
+
+- name: Copy certificate file
+  template:
+    src: cert.dce.bri.co.id.pem
+    dest: /etc/ssl/certs/cert.dce.bri.co.id.pem
+    mode: '0644'
+
+- name: copy Root CA and Intermediate CA PKI
+  unarchive:
+    src: ca-horizon.zip
+    dest: /root
+    mode: '0700'
+
+- name: Create haproxy configuration file
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: '0640'
+
+- name: Restart haproxy service
+  service:
+    name: haproxy
+    state: restarted
+    enabled: yes

@@ -1,0 +1,4 @@
+---
+- import_tasks: ubuntu-cinder.yaml
+- import_tasks: ubuntu-ceph-libvirt.yaml
+#  when: "'compute' in group_names"

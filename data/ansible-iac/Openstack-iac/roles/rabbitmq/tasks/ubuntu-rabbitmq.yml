@@ -1,0 +1,119 @@
+---
+
+- name: Install rabbitmq-server package
+  apt:
+    name: rabbitmq-server
+    state: latest
+    update_cache: yes
+
+- name: Copy erlang cookie
+  template:
+    src: erlang.cookie.j2
+    dest: /var/lib/rabbitmq/.erlang.cookie
+
+- name: Set ownership and permission erlang cookie
+  file:
+    path: /var/lib/rabbitmq/.erlang.cookie
+    owner: rabbitmq
+    group: rabbitmq
+    mode: 0400
+
+- name: Check rabbitmq cluster setup run once
+  stat:
+    path: /var/log/rabbitmq_cluster_setup.log
+  register: rabbitmq_cluster_setup
+
+- name: Restart rabbitmq-server service
+  service:
+    name: rabbitmq-server
+    state: restarted
+    enabled: yes
+  when: rabbitmq_cluster_setup.stat.exists == False
+
+- name: Stop rabbitmq app 
+  shell: rabbitmqctl stop_app
+  when:
+    - inventory_hostname != groups['controller'][0]
+    - rabbitmq_cluster_setup.stat.exists == False
+
+- name: Reset rabbitmq app
+  shell: rabbitmqctl reset
+  when:
+    - inventory_hostname != groups['controller'][0]
+    - rabbitmq_cluster_setup.stat.exists == False
+
+- name: Run check rabbitmq cluster setup once
+  copy:
+    content: "{{ansible_date_time.date}} rabbitmq ready for cluster setup!"
+    dest: /var/log/rabbitmq_cluster_setup.log
+    force: no
+    group: sys
+    owner: root
+    mode: 0555
+  when:
+    - rabbitmq_cluster_setup.stat.exists == False
+
+- name: Check RabbitMQ Cluster
+  stat:
+    path: /var/log/rabbitmq/create_rabbitmq_cluster.log
+  register: check_rabbitmq_cluster
+  when: inventory_hostname != groups['controller'][0]
+
+- name: Joining node other than controller1
+  shell: rabbitmqctl join_cluster rabbit@{{ hostvars[ groups['controller'][0] ]['ansible_hostname'] }} > /var/log/rabbitmq/create_rabbitmq_cluster.log
+  when:
+    - inventory_hostname != groups['controller'][0]
+    - check_rabbitmq_cluster.stat.exists == False
+
+- name: Start rabbitmq app
+  shell: rabbitmqctl start_app
+  when:
+    - inventory_hostname != groups['controller'][0]
+    - check_rabbitmq_cluster.stat.exists == False
+
+- name: Copy ha-mode.sh
+  template:
+    src: ha-mode.sh.j2
+    dest: /tmp/ha-mode.sh
+    mode: 0700
+
+- name: Exec ha-mode all
+  shell: /tmp/ha-mode.sh
+
+- name: Create openstack user once
+  stat:
+    path: /var/log/rabbitmq/create_openstack_user.log
+  register: check_openstack_user
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create openstack user
+  shell: rabbitmqctl add_user openstack {{ rabbitmq_openstack_password }} > /var/log/rabbitmq/create_openstack_user.log
+  when: 
+    - inventory_hostname == groups['controller'][0]
+    - check_openstack_user.stat.exists == False
+
+- name: Set permission openstack user
+  shell: rabbitmqctl set_permissions openstack ".*" ".*" ".*"
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+## memcached
+
+- name: Install memcached package
+  apt:
+    name: "{{ memcached_pkg }}"
+    state: latest
+
+- name: Change memcached listen IP
+  lineinfile:
+    path: /etc/memcached.conf
+    regexp: '\-l\s+127\.0\.0\.1'
+    line: "-l {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}"
+    backrefs: yes
+  when: "'controller' in group_names"
+
+- name: Restart memcached service
+  service:
+    name: memcached
+    state: restarted
+    enabled: yes

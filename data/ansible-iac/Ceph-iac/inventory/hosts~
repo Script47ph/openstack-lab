@@ -1,0 +1,15 @@
+[deployer]
+localhost  ansible_connection=local
+
+[ceph-nodes]
+172.18.238.1[1:3]
+172.18.238.2[1:3]
+
+[mons]
+172.18.238.1[1:3]
+
+[osds]
+172.18.238.2[1:3]
+
+[mgrs]
+172.18.238.1[1:3]

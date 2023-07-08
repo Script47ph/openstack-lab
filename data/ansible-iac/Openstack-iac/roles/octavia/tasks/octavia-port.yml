@@ -1,0 +1,90 @@
+
+- name: Register octavia port mac address
+  shell: source /root/octavia-openrc && openstack port show -c mac_address -f value {{ OCTAVIA_PORT_ID.stdout }}
+  args:
+   executable: /bin/bash
+  register: OCTAVIA_MAC
+
+- name: Register octavia port ip address
+  shell: source /root/octavia-openrc && openstack port show {{ OCTAVIA_PORT_ID.stdout }} -c fixed_ips -f value | cut -d "'" -f8
+  args:
+   executable: /bin/bash
+  register: OCTAVIA_IP
+
+- name: Create o-hm0 physical port
+  shell: |
+   ovs-vsctl -- --may-exist add-port br-int o-hm0 \
+   -- set Interface o-hm0 type=internal \
+   -- set Interface o-hm0 external-ids:iface-status=active \
+   -- set Interface o-hm0 external-ids:attached-mac={{ OCTAVIA_MAC.stdout }} \
+   -- set Interface o-hm0 external-ids:iface-id={{ OCTAVIA_PORT_ID.stdout }}
+  args:
+   executable: /bin/bash
+
+- name: Set 0-hm0 mac address
+  shell: ip link set dev o-hm0 address {{ OCTAVIA_MAC.stdout }}
+  args:
+   executable: /bin/bash
+
+- name: dhclient o-hm0 interface
+  shell: dhclient -v o-hm0 -cf /etc/dhcp/octavia
+  args:
+   executable: /bin/bash
+
+- name: Make octavia port permanent using systemd
+  template:
+    src: o-hm0.network.j2
+    dest: /etc/systemd/network/o-hm0.network
+    mode: '0644'
+
+- name: Make octavia interface service
+  template:
+    src: octavia-interface.service.j2
+    dest: /etc/systemd/system/octavia-interface.service
+    mode: '0644'
+
+- name: Copy octavia interface script
+  template:
+    src: octavia-interface.sh.j2
+    dest: /opt/octavia-interface.sh
+    mode: '0755'
+
+# TEMPLATE
+
+- name: Create octavia.conf config file
+  template:
+    src: octavia.conf.j2
+    dest: /etc/octavia/octavia.conf
+    mode: '0640'
+
+# DB SYNC
+
+- name: Octavia upgrade head
+  shell: octavia-db-manage --config-file /etc/octavia/octavia.conf upgrade head
+  become: yes
+  become_user: octavia
+  when: inventory_hostname == groups['controller'][0]
+
+# RESTART
+
+- name: Restart octavia service
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - octavia-api 
+    - octavia-health-manager
+    - octavia-housekeeping
+    - octavia-worker
+
+# OCTAVIA HORIZON
+
+- name: Install octavia-dashboard
+  apt:
+    name: python3-octavia-dashboard
+    state: latest
+  
+- name: Restart apache2 service
+  systemd:
+    name: apache2
+    state: restarted

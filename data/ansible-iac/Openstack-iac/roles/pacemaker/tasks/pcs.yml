@@ -1,0 +1,96 @@
+---
+
+- name: Check cluster auth run once
+  stat:
+    path: /var/log/hacluster/haclusterauth.log
+  register: cluster_auth
+
+- name: Set host auth
+  shell: pcs cluster auth  {% for node in groups['controller'] %}{{ hostvars[node]['ansible_hostname'] }} {% endfor %} -u hacluster -p {{ pacemaker_hacluster_password }} > /var/log/hacluster/haclusterauth.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - cluster_auth.stat.exists == False
+
+- name: Check cluster setup run once
+  stat: path=/var/log/hacluster/haclustersetup.log
+  register: cluster_setup
+
+- name: Create cluster
+  shell: pcs cluster setup --force --name os-ha {% for node in groups['controller'] %}{{ hostvars[node]['ansible_hostname'] }} {% endfor %} > /var/log/hacluster/haclustersetup.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - cluster_setup.stat.exists == False
+
+- name: Start cluster
+  shell: pcs cluster start --all > /var/log/hacluster/haclusterstart.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - cluster_setup.stat.exists == False
+
+- name: Enable cluster
+  shell: pcs cluster enable --all > /var/log/hacluster/haclusterenable.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - cluster_setup.stat.exists == False
+
+- name: Set cluster properties
+  shell: pcs property set pe-warn-series-max=1000 pe-input-series-max=1000 pe-error-series-max=1000 cluster-recheck-interval=5min
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - cluster_setup.stat.exists == False
+
+- name: Disable stonith
+  shell: pcs property set stonith-enabled=false
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - cluster_setup.stat.exists == False
+
+- name: Check the vip resource creation run once
+  stat: path=/var/log/hacluster/resource_vip.log
+  register: resource_vip
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Create the internal_vip resource
+  shell: pcs resource create internal_vip ocf:heartbeat:IPaddr2 ip="{{ internal_vip_address }}" cidr_netmask="{{ internal_vip_prefix }}" op monitor interval="30s" > /var/log/hacluster/resource_vip.log
+  when: 
+    - inventory_hostname == groups['controller'][0]
+    - resource_vip.stat.exists == False
+
+- name: Create the public_vip resource
+  shell: pcs resource create public_vip ocf:heartbeat:IPaddr2 ip="{{ public_vip_address }}" cidr_netmask="{{ internal_vip_prefix }}" op monitor interval="30s" > /var/log/hacluster/resource_vip.log
+  when: 
+    - inventory_hostname == groups['controller'][0]
+    - resource_vip.stat.exists == False
+
+- name: Check the haproxy resource creation run once
+  stat: path=/var/log/hacluster/resource_haproxy.log
+  register: resource_haproxy
+
+- name: Create haproxy resource
+  shell: pcs resource create lb-haproxy systemd:haproxy --clone op monitor interval="30s" > /var/log/hacluster/resource_haproxy.log
+  when:
+    - inventory_hostname == groups['controller'][0]
+    - resource_haproxy.stat.exists == False
+    
+- name: Constrain vip colocation 
+  shell: pcs constraint order start internal_vip then public_vip  && pcs constraint colocation add public_vip with internal_vip INFINITY 
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Constrain colacation 
+  shell: pcs constraint order start internal_vip then lb-haproxy-clone kind=Optional  && pcs constraint colocation add lb-haproxy-clone with internal_vip 
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Enable pacemaker service
+  service:
+    name: pacemaker
+    state: started
+    enabled: yes
+
+- name: Enable corosync service
+  service:
+    name: corosync
+    state: started
+    enabled: yes

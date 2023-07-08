@@ -1,0 +1,30 @@
+[ml2]
+type_drivers = local,flat,vlan,geneve
+tenant_network_types = geneve
+mechanism_drivers = ovn
+extension_drivers = port_security
+overlay_ip_version = 4
+
+[ml2_type_geneve]
+vni_ranges = 1:65536
+max_header_size = 38
+
+[ml2_type_flat]
+flat_networks = physprod,physdev
+
+[ml2_type_vxlan]
+vni_ranges = 10:100
+vxlan_group = 224.0.0.1
+
+[ml2_type_vlan]
+network_vlan_ranges = physprod:100:200,physdev:100:200
+
+[securitygroup]
+enable_security_group = true
+
+[ovn]
+ovn_nb_connection = tcp:{{ internal_vip_address }}:6641
+ovn_sb_connection = tcp:{{ internal_vip_address }}:6642
+ovn_l3_scheduler = leastloaded
+enable_distributed_floating_ip = false
+ovn_metadata_enabled = true

@@ -1,0 +1,64 @@
+[DEFAULT]
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+
+[api_settings]
+bind_host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+bind_port = 9876
+auth_strategy = keystone
+api_base_uri = http://{{ internal_vip_address }}:9876
+
+[database]
+connection = mysql+pymysql://octavia:{{ openstack_octavia_password }}@{{ internal_vip_address }}/octavia
+
+[health_manager]
+bind_ip = {{ OCTAVIA_IP.stdout }}
+bind_port = 5555
+controller_ip_port_list = {% for node in groups['controller'] %}{{ hostvars[node].OCTAVIA_IP.stdout }}:5555{% if not loop.last %},{% endif %}{% endfor %}
+
+
+[keystone_authtoken]
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000
+auth_url = http://{{ internal_vip_hostname }}:5000
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = octavia
+password = {{ openstack_octavia_password }}
+
+[certificates]
+cert_generator = local_cert_generator
+ca_certificate = /etc/octavia/certs/server_ca.cert.pem
+ca_private_key = /etc/octavia/certs/server_ca.key.pem
+ca_private_key_passphrase = {{ ca_private_key_passphrase }}
+
+[controller_worker]
+amp_image_tag=amphora
+amp_flavor_id=200
+amp_ssh_key_name=key-amphora
+amp_secgroup_list = {{ OCTAVIA_LB_ID.stdout }}
+amp_boot_network_list = {{ OCTAVIA_NET.stdout }}
+network_driver = allowed_address_pairs_driver
+compute_driver = compute_nova_driver
+amphora_driver = amphora_haproxy_rest_driver
+client_ca = /etc/octavia/certs/client_ca.cert.pem
+
+[haproxy_amphora]
+client_cert = /etc/octavia/certs/client.cert-and-key.pem
+server_ca = /etc/octavia/certs/server_ca.cert.pem
+
+[oslo_messaging]
+topic = octavia_prov
+
+[service_auth]
+auth_url = http://{{ internal_vip_hostname }}:5000
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+auth_type = password
+project_domain_name = Default
+user_domain_name = Default
+project_name = service
+username = octavia
+password = {{ openstack_octavia_password }}

@@ -1,0 +1,24 @@
+---
+nova:
+  controller:
+    packages:
+      - nova-api
+      - nova-conductor
+      - nova-novncproxy
+      - nova-scheduler
+      - placement-api
+      - python3-novaclient
+  compute:
+    packages:
+      - nova-compute
+      - nova-compute-kvm
+      - qemu-kvm
+      - libvirt-daemon-system 
+      - libvirt-daemon 
+      - virtinst 
+      - bridge-utils 
+      - libosinfo-bin 
+      - libguestfs-tools 
+      - virt-top
+      - nova-compute-kvm 
+      - qemu-system-data

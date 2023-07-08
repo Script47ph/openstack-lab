@@ -1,0 +1,9 @@
+---
+- name: restart haproxy
+  service:
+    name: haproxy
+    state: restarted
+
+- name: load sysctl parameters
+  shell: sysctl -p /usr/lib/sysctl.d/50-haproxy.conf
+

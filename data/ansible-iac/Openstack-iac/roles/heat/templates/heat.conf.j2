@@ -1,0 +1,56 @@
+[DEFAULT]
+deferred_auth_method = trusts
+trusts_delegated_roles = heat_stack_owner
+heat_metadata_server_url = http://{{ internal_vip_address }}:8000
+heat_waitcondition_server_url = http://{{ internal_vip_address }}:8000/v1/waitcondition
+heat_watch_server_url = http://{{ internal_vip_address  }}:8003
+heat_stack_user_role = heat_stack_user
+stack_user_domain_name = heat
+stack_domain_admin = heat_domain_admin
+stack_domain_admin_password = {{ openstack_heat_domain_admin_password }}
+region_name_for_services = {{ region_name }}
+
+[oslo_messaging_rabbit]
+rabbit_hosts={% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}
+
+rabbit_retry_interval=1
+rabbit_retry_backoff=2
+rabbit_max_retries=0
+rabbit_durable_queues=true
+rabbit_ha_queues=true
+
+[database]
+connection = mysql+pymysql://heat:{{ openstack_heat_password }}@{{ internal_vip_address }}/heat
+
+[clients_keystone]
+auth_uri = http://{{ internal_vip_hostname }}:5000
+
+[ec2authtoken]
+auth_uri = http://{{ internal_vip_hostname }}:5000
+
+[heat_api]
+bind_host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+bind_port = 8004
+
+[heat_api_cfn]
+bind_host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+bind_port = 8000
+
+[keystone_authtoken]
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000
+auth_url = http://{{ internal_vip_hostname }}:5000
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+auth_type = password
+project_domain_name = default
+user_domain_name = default
+project_name = service
+username = heat
+password = {{ openstack_heat_password }}
+
+[trustee]
+auth_type = password
+auth_url = http://{{ internal_vip_hostname }}:5000
+username = heat
+password = {{ openstack_heat_password }}
+user_domain_name = default

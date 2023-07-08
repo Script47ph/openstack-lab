@@ -1,0 +1,17 @@
+---
+neutron:
+  controller:
+     packages:
+       - neutron-server
+       - neutron-plugin-ml2
+       - openvswitch-common
+       - ovn-common
+       - ovn-host
+       - ovn-central
+  compute:
+    packages:
+      - openvswitch-common
+      - ovn-common
+      - ovn-host
+      - ovn-central
+      - neutron-ovn-metadata-agent

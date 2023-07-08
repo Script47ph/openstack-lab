@@ -1,0 +1,76 @@
+[DEFAULT]
+debug = False
+use_forwarded_for = true
+use_stderr = False
+my_ip = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+osapi_volume_workers = 5
+volume_name_template = volume-%s
+glance_api_servers = http://{{internal_vip_address}}:9292
+glance_num_retries = 3
+glance_api_version = 2
+glance_ca_certificates_file =
+os_region_name = {{ region_name }}
+enabled_backends = ceph 
+osapi_volume_listen = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+osapi_volume_listen_port = 8776
+api_paste_config = /etc/cinder/api-paste.ini
+auth_strategy = keystone
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+
+[oslo_messaging_notifications]
+transport_url = rabbit://{% for node in groups['controller'] %}openstack:{{rabbitmq_openstack_password}}@{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}//
+driver = noop
+
+[oslo_middleware]
+enable_proxy_headers_parsing = True
+
+[nova]
+interface = internal
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+auth_type = password
+project_domain_id = default
+user_domain_id = default
+region_name = {{ region_name }}
+project_name = service
+username = nova
+password = {{ openstack_nova_password }}
+cafile =
+
+[database]
+connection = mysql+pymysql://cinder:{{ openstack_cinder_password }}@{{ internal_vip_address }}/cinder
+max_retries = -1
+
+[keystone_authtoken]
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+auth_type = password
+project_domain_name = Default
+user_domain_name = Default
+project_name = service
+username = cinder
+password = {{ openstack_cinder_password }}
+cafile =
+
+[oslo_concurrency]
+lock_path = /var/lib/cinder/tmp
+
+[ceph]
+volume_driver = cinder.volume.drivers.rbd.RBDDriver
+volume_backend_name = ceph
+rbd_pool = volumes
+rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_flatten_volume_from_snapshot = false
+rbd_max_clone_depth = 5
+rbd_store_chunk_size = 4
+rados_connect_timeout = -1
+rbd_user = cinder
+rbd_secret_uuid = {{ rbd_secret_uuid }}
+report_discard_supported = True
+image_upload_use_cinder_backend = True
+
+[privsep_entrypoint]
+helper_command = sudo cinder-rootwrap /etc/cinder/rootwrap.conf privsep-helper --config-file /etc/cinder/cinder.conf
+
+[coordination]

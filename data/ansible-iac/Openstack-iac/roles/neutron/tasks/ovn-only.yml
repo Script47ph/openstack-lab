@@ -1,0 +1,325 @@
+# SB
+
+- name: create southbound cluster on systemd
+  lineinfile:
+    path:  /lib/systemd/system/ovn-ovsdb-server-sb.service
+    regexp: '^ExecStart='
+    line: ExecStart=/usr/share/ovn/scripts/ovn-ctl --db-sb-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} --db-sb-create-insecure-remote=yes --db-sb-cluster-local-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} run_sb_ovsdb
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: restart daemon
+  shell: systemctl daemon-reload
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: restart ovn-ovsdb-server-sb
+  systemd:
+    name: ovn-ovsdb-server-sb
+    state: restarted
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: join southbound cluster on other controller on systemd
+  lineinfile:
+    path:  /lib/systemd/system/ovn-ovsdb-server-sb.service
+    regexp: '^ExecStart='
+    line: ExecStart=/usr/share/ovn/scripts/ovn-ctl --db-sb-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} --db-sb-create-insecure-remote=yes --db-sb-cluster-local-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} --db-sb-cluster-remote-addr={{ hostvars[groups['controller'][0]]['ansible_' ~ api_interface]['ipv4']['address'] }} run_sb_ovsdb
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: restart daemon
+  shell: systemctl daemon-reload
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: stop ovn-ovsdb-server-sb service
+  systemd:
+    name: ovn-ovsdb-server-sb
+    state: stopped
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: backup ovnsb_db.db file
+  shell: mv /var/lib/ovn/ovnsb_db.db /var/lib/ovn/ovnsb_db.db.backup
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: join southbound cluster using ovsdb-tool
+  shell: ovsdb-tool join-cluster /var/lib/ovn/ovnsb_db.db OVN_Southbound tcp:{{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:6644 tcp:{{ hostvars[groups['controller'][0]]['ansible_' ~ api_interface]['ipv4']['address'] }}:6644
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: start ovn-ovsdb-server-sb service
+  systemd:
+    name: ovn-ovsdb-server-sb
+    state: started
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+# NB
+
+- name: create northbound cluster on systemd
+  lineinfile:
+    path: /lib/systemd/system/ovn-ovsdb-server-nb.service
+    regexp: '^ExecStart='
+    line: ExecStart=/usr/share/ovn/scripts/ovn-ctl --db-nb-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} --db-nb-create-insecure-remote=yes --db-nb-cluster-local-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} run_nb_ovsdb
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: restart daemon
+  shell: systemctl daemon-reload
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: restart ovn-ovsdb-server-nb service
+  systemd:
+    name: ovn-ovsdb-server-nb
+    state: restarted
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: join northbound cluster on other controller on systemd
+  lineinfile:
+    path:  /lib/systemd/system/ovn-ovsdb-server-nb.service
+    regexp: '^ExecStart='
+    line: ExecStart=/usr/share/ovn/scripts/ovn-ctl --db-nb-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} --db-nb-create-insecure-remote=yes --db-nb-cluster-local-addr={{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }} --db-nb-cluster-remote-addr={{ hostvars[groups['controller'][0]]['ansible_' ~ api_interface]['ipv4']['address'] }} run_sb_ovsdb
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: restart daemon
+  shell: systemctl daemon-reload
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: stop ovn-ovsdb-server-nb service
+  systemd:
+    name: ovn-ovsdb-server-nb
+    state: stopped
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: backup ovnnb_db.db file
+  shell: mv /var/lib/ovn/ovnnb_db.db /var/lib/ovn/ovnnb_db.db.backup
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: join northbound cluster using ovsdb-tool
+  shell: ovsdb-tool join-cluster /var/lib/ovn/ovnnb_db.db OVN_Northbound tcp:{{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:6643 tcp:{{ hostvars[groups['controller'][0]]['ansible_' ~ api_interface]['ipv4']['address'] }}:6643
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: start ovn-ovsdb-server-nb service
+  systemd:
+    name: ovn-ovsdb-server-nb
+    state: started
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+
+# SET NB
+
+- name: set northd untuk connect ke semua member cluster
+  lineinfile:
+    path: /lib/systemd/system/ovn-northd.service
+    regexp: '^ExecStart='
+    line: ExecStart=/usr/share/ovn/scripts/ovn-ctl --ovn-northd-nb-db={% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6641{% if not loop.last %},{% endif %}{% endfor %} --ovn-northd-sb-db={% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6642{% if not loop.last %},{% endif %}{% endfor %} start_northd --ovn-manage-ovsdb=no --no-monitor $OVN_CTL_OPTS
+  when: "'controller' in group_names"
+
+- name: restart daemon
+  shell: systemctl daemon-reload
+  when:
+    - "'controller' in group_names"
+
+- name: restart ovn-northd service
+  systemd:
+    name: ovn-northd
+    state: restarted
+  when:
+    - "'controller' in group_names"
+
+- name: restart ovn-ovsdb-server-nb service
+  systemd:
+    name: ovn-ovsdb-server-nb
+    state: restarted
+  when:
+    - "'controller' in group_names"
+
+- name: restart ovn-ovsdb-server-sb service
+  systemd:
+    name: ovn-ovsdb-server-sb
+    state: restarted
+  when:
+    - "'controller' in group_names"
+
+# TEMPLATE
+
+- name: Create neutron server configuration file
+  template:
+    src: neutron.conf.j2
+    dest: /etc/neutron/neutron.conf
+    group: neutron
+  when: "'controller' in group_names"
+
+- name: Create neutron ml2 plugin configuration file
+  template:
+    src: ml2_conf.ini.j2
+    dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+    group: neutron
+  when: "'controller' in group_names"
+
+# DB SYNC
+
+- name: Neutron db sync
+  shell: neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head
+  become: yes
+  become_user: neutron
+  when: inventory_hostname == groups['controller'][0]
+
+- name: set ovn remote
+  shell: ovs-vsctl set open . external-ids:ovn-remote="{% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6642{% if not loop.last %},{% endif %}{% endfor %}"
+  when: "'controller' in group_names"
+
+- name: set ovn encap geneve
+  shell: ovs-vsctl set open . external-ids:ovn-encap-type=geneve
+  when: "'controller' in group_names"
+
+- name: set ovn encap ip
+  shell: ovs-vsctl set open . external-ids:ovn-encap-ip={{ hostvars[inventory_hostname]['ansible_' ~ overlay_interface]['ipv4']['address'] }}
+  when: "'controller' in group_names"
+
+- name: set ovn nb
+  shell: ovs-vsctl set open . external_ids:ovn-nb="{% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6641{% if not loop.last %},{% endif %}{% endfor %}"
+  when: "'controller' in group_names"
+
+# Create Bridge for Contoller
+- name: Create bridge prod
+  shell: "ovs-vsctl --may-exist add-br br-prod -- set bridge br-prod protocols=OpenFlow13"
+  when: "'controller' in group_names"
+
+- name: Create bridge dev
+  shell: "ovs-vsctl --may-exist add-br br-dev -- set bridge br-dev protocols=OpenFlow13"
+  when: "'controller' in group_names"
+
+- name: Mapping interface to bridge production
+  shell: "ovs-vsctl set open . external-ids:ovn-bridge-mappings=physprod:br-prod,physdev:br-dev"
+  when: "'controller' in group_names"
+
+- name: Add {{ production_interface }} to br-prod
+  shell: "ovs-vsctl --may-exist add-port br-prod {{ production_interface }}"
+  when: "'controller' in group_names"
+
+- name: Add {{ developer_interface }} to br-dev
+  shell: "ovs-vsctl --may-exist add-port br-dev {{ developer_interface }}"
+  when: "'controller' in group_names"
+
+- name: enable chassis as gw
+  shell: ovs-vsctl set open . external-ids:ovn-cms-options=enable-chassis-as-gw
+  when: "'controller' in group_names"
+
+# Create Bridge for Compute
+- name: Create bridge prod
+  shell: "ovs-vsctl --may-exist add-br br-prod -- set bridge br-prod protocols=OpenFlow13"
+  when: "'compute' in group_names"
+
+- name: Create bridge dev
+  shell: "ovs-vsctl --may-exist add-br br-dev -- set bridge br-dev protocols=OpenFlow13"
+  when: "'compute' in group_names"
+
+- name: Mapping interface to bridge production
+  shell: "ovs-vsctl set open . external-ids:ovn-bridge-mappings=physprod:br-prod,physdev:br-dev"
+  when: "'compute' in group_names"
+
+- name: Add {{ production_interface }} to br-prod
+  shell: "ovs-vsctl --may-exist add-port br-prod {{ production_interface }}"
+  when: "'compute' in group_names"
+
+- name: Add {{ developer_interface }} to br-dev
+  shell: "ovs-vsctl --may-exist add-port br-dev {{ developer_interface }}"
+  when: "'compute' in group_names"
+
+- name: restart neutron-server
+  systemd:
+    name: neutron-server
+    state: restarted
+  when: "'controller' in group_names"
+
+- name: restart ovn-controller
+  systemd:
+    name: ovn-controller
+    state: restarted
+  when: "'controller' in group_names"
+
+- name: restart nova-api
+  systemd:
+    name: nova-api
+    state: restarted
+  when: "'controller' in group_names"
+
+# COMPUTE
+
+- name: set ovn remote
+  shell: ovs-vsctl set open . external-ids:ovn-remote="{% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6642{% if not loop.last %},{% endif %}{% endfor %}"
+  when: "'compute' in group_names"
+
+- name: set ovn encap geneve
+  shell: ovs-vsctl set open . external-ids:ovn-encap-type=geneve
+  when: "'compute' in group_names"
+
+- name: set ovn encap ip
+  shell: ovs-vsctl set open . external-ids:ovn-encap-ip={{ hostvars[inventory_hostname]['ansible_' ~ overlay_interface]['ipv4']['address'] }}
+  when: "'compute' in group_names"
+
+- name: Create neutron metadata configuration file on compute nodes
+  template:
+    src: neutron_ovn_metadata_agent.ini.j2
+    dest: /etc/neutron/neutron_ovn_metadata_agent.ini
+  when: "'compute' in group_names"
+
+- name: restart neutron service
+  systemd:
+    name: neutron-ovn-metadata-agent
+    state: restarted
+  when: "'compute' in group_names"
+
+- name: restart ovn service
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - ovn-central.service
+    - ovn-controller.service
+    - ovn-host.service
+    - ovn-nb-ovsdb.service
+    - ovn-northd.service
+    - ovn-ovsdb-server-nb.service
+    - ovn-ovsdb-server-sb.service
+    - ovn-sb-ovsdb.service
+  when: "'compute' in group_names"
+
+- name: restart neutron-ovn-metadata-agent
+  systemd:
+    name: neutron-ovn-metadata-agent
+    state: restarted
+  when: "'compute' in group_names"
+
+# NEUTRON DRIVER
+
+- name: create dvr sysctl configuration file
+  template:
+    src: 99-neutron-dvr.conf.j2
+    dest: /usr/lib/sysctl.d/99-neutron-dvr.conf
+    mode: '0644'
+  notify: load sysctl parameters

@@ -1,0 +1,19 @@
+---
+- name: restart mysql
+  service:
+    name: mysql
+    state: restarted
+  become: true
+
+- name: reload mysql
+  service:
+    name: mysql
+    state: reloaded
+  become: true
+
+- name: restart xinetd
+  service:
+    name: xinetd
+    state: restarted
+  become: true
+

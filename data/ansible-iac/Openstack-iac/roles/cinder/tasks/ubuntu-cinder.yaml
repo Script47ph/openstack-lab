@@ -1,0 +1,251 @@
+---
+- name: Create cinder database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: cinder
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant cinder database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: cinder
+    password: "{{ mysql_cinder_password }}"
+    priv: 'cinder.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant cinder database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: cinder
+    password: "{{ mysql_cinder_password }}"
+    priv: 'cinder.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant cinder database to any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: cinder
+    password: "{{ mysql_cinder_password }}"
+    priv: 'cinder.*:ALL'
+    host: "%"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinder user
+  os_user:
+    cloud: openstack
+    state: present
+    name: cinder
+    password: "{{ openstack_cinder_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the cinder user
+  os_user_role:
+    cloud: openstack
+    user: cinder
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv2 service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: cinderv2
+    service_type: volumev2
+    description: "OpenStack Block Storage"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv3 service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: cinderv3
+    service_type: volumev3
+    description: "OpenStack Block Storage"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv2 public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: cinderv2
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:8776/v2/%(project_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv2 internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: cinderv2
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:8776/v2/%(project_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv2 admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: cinderv2
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:8776/v2/%(project_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv3 public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: cinderv3
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:8776/v3/%(project_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv3 internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: cinderv3
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:8776/v3/%(project_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create cinderv3 admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: cinderv3
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:8776/v3/%(project_id)s"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Install cinder controller packages
+  apt:
+    name: "{{ cinder.controller.packages }}"
+    state: latest
+  when: "'controller' in group_names"
+
+- name: Install cinder storage packages
+  apt:
+    name: "{{ cinder.storage.packages }}"
+    state: latest
+  when: "'storage' in group_names"
+
+- name: install python3-rtslib-fb pkg
+  apt:
+    name: python3-rtslib-fb
+    state: latest
+  failed_when: false
+  no_log: True
+  when: "'storage' in group_names"    
+
+- name: fix python3-rtslib-fb systemd bug
+  template:
+    src: rtslib-fb-target.j2
+    dest: /lib/systemd/system/rtslib-fb-targetctl.service
+    mode: '0644'
+  when: "'storage' in group_names" 
+
+- name: start rtslib-fb-targetctl service
+  systemd:
+    name: rtslib-fb-targetctl
+    state: started
+  when: "'storage' in group_names" 
+
+- name: Create cinder configuration file on controller node
+  template:
+    src: cinder.conf.j2
+    dest: /etc/cinder/cinder.conf
+    mode: '0640'
+  when: "'controller' in group_names"
+  notify:
+    - restart cinder-scheduler service
+
+- name: Create cinder configuration file on storage node
+  template:
+    src: cinder.conf.j2
+    dest: /etc/cinder/cinder.conf
+    mode: '0640'
+  notify:
+    - restart cinder-volume service
+  when: "'storage' in group_names"
+
+- name: Change cinder wsgi listen addreess
+  lineinfile: 
+    path: /etc/apache2/conf-enabled/cinder-wsgi.conf
+    regexp: 'Listen\s+8776' 
+    line: "Listen {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:8776"
+    backrefs: yes
+  when: "'controller' in group_names"
+
+- name: Populate cinder database
+  shell: cinder-manage db sync
+  become: yes
+  become_user: cinder
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Restart cinder-scheduler service
+  service:
+    name: cinder-scheduler
+    state: restarted
+    enabled: yes
+  when: "'controller' in group_names"
+
+- name: Restart cinder-volume service
+  service:
+    name: cinder-volume
+    state: restarted
+    enabled: yes
+  when: "'storage' in group_names"
+
+- name: Restart apache2 using pcs
+  shell: pcs resource restart wsgi-keystone-clone
+  ignore_errors: yes
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: wait 10s for savely start apache service
+  pause:
+    seconds: 10
+
+- name: Check apache2 service started
+  service:
+    name: apache2
+    state: started
+  when: "'controller' in group_names"
+
+- name: Waiting for keystone API to be ready
+  wait_for: timeout=10
+  delegate_to: localhost
+
+- name: Create volume type ceph
+  environment:
+    OS_CLOUD: openstack
+  shell: openstack volume type list | grep -i ceph || openstack volume type create ceph && openstack volume type set --property volume_backend_name=ceph ceph
+  when: inventory_hostname == groups['controller'][0]
+
+- name: chown cinder on storage node
+  file:
+    path: /etc/ceph/ceph.client.cinder.keyring
+    owner: cinder
+    group: cinder
+  when: "'storage' in group_names"

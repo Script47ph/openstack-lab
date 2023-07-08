@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -ex
+
+MGMT_PORT_MAC={{ OCTAVIA_MAC.stdout }}
+MGMT_PORT_ID={{ OCTAVIA_SUBNET_ID.stdout }}
+
+if [ "$1" == "start" ]; then
+  ovs-vsctl -- --may-exist add-port br-int o-hm0 -- set Interface o-hm0 type=internal -- set Interface o-hm0 external-ids:iface-status=active -- set Interface o-hm0 external-ids:attached-mac=$MGMT_PORT_MAC -- set Interface o-hm0 external-ids:iface-id=$MGMT_PORT_ID
+  ip link set dev o-hm0 address $MGMT_PORT_MAC
+  ip link set o-hm0 up
+  iptables -I INPUT -i o-hm0 -p udp --dport 5555 -j ACCEPT
+elif [ "$1" == "stop" ]; then
+  ovs-vsctl del-port o-hm0
+else
+  ovs-vsctl show br-int
+  ip a s dev o-hm0
+fi

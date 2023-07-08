@@ -1,0 +1,9 @@
+[controller]
+control-0[1:3]
+
+[compute]
+compute-0[1:3]
+
+[storage]
+control-0[1:3]
+compute-0[1:3]

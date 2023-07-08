@@ -1,0 +1,45 @@
+---
+
+- name: Create keystone database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: keystone
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+- name: Grant keystone database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: keystone
+    password: "{{ mysql_keystone_password }}"
+    append_privs: true
+    priv: 'keystone.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+- name: Grant keystone database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: keystone
+    password: "{{ mysql_keystone_password }}"
+    append_privs: true
+    priv: 'keystone.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant keystone database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: keystone
+    password: "{{ mysql_keystone_password }}"
+    append_privs: true
+    priv: 'keystone.*:ALL'
+    host: "%"
+  when: inventory_hostname == groups['controller'][0]
+

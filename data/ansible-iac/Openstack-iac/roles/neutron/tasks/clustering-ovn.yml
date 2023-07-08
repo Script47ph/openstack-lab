@@ -1,0 +1,94 @@
+- name: Create ovn central configuration in controller 01
+  template:
+    src: ovn-central-1.j2
+    dest: /etc/default/ovn-central
+    group: neutron
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create ovn central configuration in controller 02
+  template:
+    src: ovn-central-2.j2
+    dest: /etc/default/ovn-central
+    group: neutron
+  when: 
+    - inventory_hostname == groups['controller'][1]
+
+- name: Create ovn central configuration in controller 03
+  template:
+    src: ovn-central-3.j2
+    dest: /etc/default/ovn-central
+    group: neutron
+  when: inventory_hostname == groups['controller'][2]
+
+- name: restart ovn-central service in leader node
+  systemd:
+    name: ovn-central
+    state: restarted
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Wait 10 seconds to safely restart ovn-central nodes
+  pause:
+    seconds: 10
+
+- name: restart ovn-central server in follower node
+  systemd:
+    name: ovn-central
+    state: restarted
+  when: inventory_hostname != groups['controller'][0]
+
+- name: stop ovn-ovsdb-server-sb service
+  systemd:
+    name: ovn-ovsdb-server-sb
+    state: stopped
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: backup ovnsb_db.db file
+  shell: mv /var/lib/ovn/ovnsb_db.db /var/lib/ovn/ovnsb_db.db.backup
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: join southbound cluster using ovsdb-tool
+  shell: ovsdb-tool join-cluster /var/lib/ovn/ovnsb_db.db OVN_Southbound tcp:{{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:6644 tcp:{{ hostvars[groups['controller'][0]]['ansible_' ~ api_interface]['ipv4']['address'] }}:6644
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: start ovn-ovsdb-server-sb service
+  systemd:
+    name: ovn-ovsdb-server-sb
+    state: started
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: stop ovn-ovsdb-server-nb service
+  systemd:
+    name: ovn-ovsdb-server-nb
+    state: stopped
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: backup ovnnb_db.db file
+  shell: mv /var/lib/ovn/ovnnb_db.db /var/lib/ovn/ovnnb_db.db.backup
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: join northbound cluster using ovsdb-tool
+  shell: ovsdb-tool join-cluster /var/lib/ovn/ovnnb_db.db OVN_Northbound tcp:{{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}:6643 tcp:{{ hostvars[groups['controller'][0]]['ansible_' ~ api_interface]['ipv4']['address'] }}:6643
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]
+
+- name: start ovn-ovsdb-server-nb service
+  systemd:
+    name: ovn-ovsdb-server-nb
+    state: started
+  when:
+    - "'controller' in group_names"
+    - inventory_hostname != groups['controller'][0]

@@ -1,0 +1,3 @@
+  - name: copy id ssh to all host
+    command: sshpass -p {{ ssh_password }} ssh-copy-id -o "StrictHostKeyChecking=no" -i ~/.ssh/id_rsa.pub {{ ssh_user }}@{{ items }}
+    with_items: "{{ groups['ceph-nodes'] }}"

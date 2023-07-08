@@ -1,0 +1,13 @@
+---
+- name: create netron db
+  import_tasks: neutron-db.yml
+  tags: neutron_db
+
+- name: clustering ovn ovs-db
+  import_tasks: clustering-ovn.yml
+  tags: clustering_ovn
+
+- name: deploy neutron
+  import_tasks: ubuntu-neutron.yml
+  tags: neutron_config
+#- import_tasks: ovn-only.yml

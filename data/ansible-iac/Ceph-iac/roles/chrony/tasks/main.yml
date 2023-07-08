@@ -1,0 +1,40 @@
+- name: Replace a chrony server
+  become_user: root
+  lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: '^pool\sntp.ubuntu.com'
+    line: server 0.id.pool.ntp.org iburst maxsources 4
+
+- name: Replace a chrony server
+  become_user: root
+  lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: '^pool\s0.ubuntu.pool.ntp.org\siburst\smaxsources\s1'
+    line: server 1.id.pool.ntp.org iburst maxsources 1
+
+
+- name: Replace a chrony server
+  become_user: root
+  lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: '^pool\s1.ubuntu.pool.ntp.org\siburst\smaxsources\s1'
+    line: server 2.id.pool.ntp.org iburst maxsources 1
+
+- name: Replace a chrony server
+  become_user: root
+  lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: '^pool\s2.ubuntu.pool.ntp.org\siburst\smaxsources\s2'
+    line: server 3.id.pool.ntp.org iburst maxsources 1
+
+- name: start and enable chronyd service
+  service:
+    name: chronyd
+    enabled: yes
+    state: started
+
+- name: start chronyd service
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: chronyd

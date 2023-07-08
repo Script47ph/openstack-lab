@@ -1,0 +1,11 @@
+---
+- name: Create pacemaker resource for ovndb-server cluster
+  shell: pcs resource create ovndb_servers ocf:ovn:ovndb-servers master_ip= {{ internal_vip_address }} listen_on_master_ip_only="no" ovn_ctl=/usr/share/ovn/scripts/ovn-ctl op monitor interval="10s" op monitor role=Master interval="15s"
+  when:
+    - inventory_hostname == groups['controller'][0]
+
+- name: Create pacemaker master resource for ovndb-server
+  shell: pcs resource promotable ovndb_servers meta notify="true"
+  when:
+    - inventory_hostname == groups['controller'][0]
+

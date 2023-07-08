@@ -1,0 +1,29 @@
+---
+  - name: Create List of mon nodes to be added into Cluster
+    set_fact: monnamelist={%for host in groups['osds']%}"{{ hostvars[host]['ansible_hostname'] }}"{% if not loop.last %},{% endif %}{% endfor %}
+
+  - name: Procces line list of mon hostname with bash
+    shell: echo "{{ monnamelist }}"|tr -d '"'|sed -r 's/,/ /g'
+    register: mon_hostname
+
+  - name: Install Ceph Package (osd)
+    become_user: "{{ lookup('env','USER') }}"
+    shell: "ceph-deploy install --osd --release {{ ceph_version }} {{ mon_hostname.stdout }}"
+    when:
+     - inventory_hostname == groups['mons'][0]
+    run_once: true
+
+  - name: Copy ceph.conf to all osd nodes
+    synchronize:
+      src: "/root/ceph.conf"
+      dest: "/root/ceph.conf"
+
+  - name: Copy bootstrap-osd keyring to all osd nodes
+    synchronize:
+      src: "/root/ceph.bootstrap-osd.keyring"
+      dest: "/root/ceph.bootstrap-osd.keyring"
+
+  - name: Copy client-admin keyring to all osd nodes
+    synchronize:
+      src: "/root/ceph.client.admin.keyring"
+      dest: "/root/ceph.client.admin.keyring"

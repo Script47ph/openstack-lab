@@ -1,0 +1,2 @@
+# ceph-deploy-ansible
+

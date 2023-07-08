@@ -1,0 +1,116 @@
+- name: Create neutron database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: neutron
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant neutron database local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: neutron
+    password: "{{ mysql_neutron_password }}"
+    append_privs: true
+    priv: 'neutron.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant neutron database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: neutron
+    password: "{{ mysql_neutron_password }}"
+    append_privs: true
+    priv: 'neutron.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant neutron database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: neutron
+    password: "{{ mysql_neutron_password }}"
+    append_privs: true
+    priv: 'neutron.*:ALL'
+    host: '%'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create neutron user
+  os_user:
+    cloud: openstack
+    state: present
+    name: neutron
+    password: "{{ openstack_neutron_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the neutron user
+  os_user_role:
+    cloud: openstack
+    user: neutron
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create neutron service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: neutron
+    service_type: network
+    description: "OpenStack Networking Service"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create neutron public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: neutron
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:9696"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create neutron internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: neutron
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:9696"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create neutron admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: neutron
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:9696"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Install neutron controller packages
+  apt:
+    name: "{{ neutron.controller.packages }}"
+    state: latest
+  when: "'controller' in group_names"
+  tags: install-neutron-controller
+
+- name: Install neutron compute packages
+  apt:
+    name: "{{ neutron.compute.packages }}"
+    state: latest
+  when: "'compute' in group_names"
+  tags: install-neutron-compute

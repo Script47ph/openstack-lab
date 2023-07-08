@@ -1,0 +1,16 @@
+---
+cinder:
+  controller:
+    packages:
+      - cinder-api
+      - cinder-scheduler
+      - python3-cinderclient
+  storage:
+    packages:
+      - cinder-volume
+      - python3-mysqldb
+  compute:
+    packages:
+      - libvirt-daemon-driver-qemu
+      - libvirt-daemon-system
+      - libvirt-clients

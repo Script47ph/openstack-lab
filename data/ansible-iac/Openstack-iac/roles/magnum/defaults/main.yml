@@ -1,0 +1,7 @@
+---
+magnum:
+  controller:
+    packages:
+      - magnum-api
+      - magnum-conductor
+      - python3-magnumclient

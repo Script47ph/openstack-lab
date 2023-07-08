@@ -1,0 +1,70 @@
+---
+- name: Apply role prechecks
+  hosts: all
+  roles:
+    - {role: 'prechecks', tags: 'prechecks'}
+
+- name: Apply rol baremetal
+  hosts: all
+  roles:
+    - {role: 'baremetal', tags: 'baremetal'}
+
+- name: Apply role mariadb
+  hosts: controller
+  roles:
+    - {role: 'mariadb', tags: 'mariadb'}
+
+- name: Apply role rabbitmq
+  hosts: controller
+  roles:
+    - {role: 'rabbitmq', tags: 'rabbitmq'}
+
+- name: Apply role haproxy
+  hosts: controller
+  roles:
+    - {role: 'haproxy', tags: 'haproxy'}
+
+- name: Apply role pacemaker
+  hosts: controller
+  roles:
+    - {role: 'pacemaker', tags: 'pacemaker'}
+
+- name: Apply role keystone
+  hosts: controller
+  roles:
+    - {role: 'keystone', tags: 'keystone'}
+ 
+- name: Apply role glance
+  hosts: controller
+  roles:
+    - {role: 'glance', tags: 'glance'}
+
+- name: Apply role cinder
+  hosts: controller,compute,storage
+  roles:
+    - {role: 'cinder', tags: 'cinder'}
+ 
+- name: Apply role nova
+  hosts: controller,compute,storage
+  roles:
+    - {role: 'nova', tags: 'nova'}
+
+- name: Apply role neutron
+  hosts: controller,compute
+  roles:
+    - {role: 'neutron', tags: 'neutron'}
+
+- name: Apply role horizon
+  hosts: controller
+  roles:
+    - {role: 'horizon', tags: 'horizon'}
+
+- name: Apply role heat
+  hosts: controller
+  roles:
+    - {role: 'heat', tags: 'heat'}
+      
+#- name: Apply role Octavia
+#  hosts: controller
+#  roles:
+#    - {role: 'octavia', tags: 'octavia'}

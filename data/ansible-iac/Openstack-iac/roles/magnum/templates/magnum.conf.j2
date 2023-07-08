@@ -1,0 +1,88 @@
+[cinder_client]
+region_name = {{ region_name }}
+
+[oslo_messaging_notifications]
+driver = messaging
+
+[oslo_messaging_rabbit]
+rabbit_hosts={% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5672{% if not loop.last %},{% endif %}{% endfor %}
+
+rabbit_retry_interval=1
+rabbit_retry_backoff=2
+rabbit_max_retries=0
+rabbit_durable_queues=true
+rabbit_ha_queues=true
+
+[magnum_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[heat_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[octavia_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[cinder_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[barbican_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[glance_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[neutron_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+[nova_client]
+region_name = {{ region_name }}
+endpoint_type = internalURL
+
+
+[api]
+host = {{ hostvars[inventory_hostname]['ansible_' ~ api_interface]['ipv4']['address'] }}
+
+[certificates]
+cert_manager_type = x509keypair
+
+[database]
+connection = mysql+pymysql://magnum:{{ openstack_magnum_password }}@{{ internal_vip_address }}/magnum
+
+[keystone_authtoken]
+memcached_servers = {% for node in groups['controller'] %}{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:11211{% if not loop.last %},{% endif %}{% endfor %}
+
+auth_version = v3
+www_authenticate_uri = http://{{ internal_vip_hostname }}:5000/v3
+project_domain_id = default
+project_name = service
+user_domain_id = default
+username = magnum
+password = {{ openstack_magnum_password }}
+auth_url = http://{{ internal_vip_hostname }}:5000
+auth_type = password
+admin_user = magnum
+admin_password = {{ openstack_magnum_password }}
+admin_tenant_name = service
+
+[trust]
+trustee_domain_name = magnum
+trustee_domain_admin_name = magnum_domain_admin
+trustee_domain_admin_password = {{ openstack_magnum_domain_admin_password }}
+trustee_keystone_interface = public
+cluster_user_trust = True
+
+[keystone_auth]
+auth_url = http://{{ internal_vip_hostname }}:5000/v3
+user_domain_name = Default
+project_domain_name = Default
+project_name = service
+password = {{openstack_magnum_password  }}
+username = magnum
+auth_type = password

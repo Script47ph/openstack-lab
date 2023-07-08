@@ -1,0 +1,160 @@
+
+# TEMPLATE
+
+- name: Create neutron server configuration file
+  template:
+    src: neutron.conf.j2
+    dest: /etc/neutron/neutron.conf
+    group: neutron
+  when: "'controller' in group_names"
+
+- name: Create neutron ml2 plugin configuration file
+  template:
+    src: ml2_conf.ini.j2
+    dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+    group: neutron
+  when: "'controller' in group_names"
+
+# DB SYNC
+
+- name: Neutron db sync
+  shell: neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head
+  become: true
+  become_user: neutron
+  when: inventory_hostname == groups['controller'][0]
+
+- name: set ovn remote
+  shell: ovs-vsctl set open . external-ids:ovn-remote="tcp:{{ internal_vip_address }}:6642"
+  when: "'controller' in group_names"
+
+- name: set ovn encap geneve
+  shell: ovs-vsctl set open . external-ids:ovn-encap-type=geneve
+  when: "'controller' in group_names"
+
+- name: set ovn encap ip
+  shell: ovs-vsctl set open . external-ids:ovn-encap-ip={{ hostvars[inventory_hostname]['ansible_' ~ overlay_interface]['ipv4']['address'] }}
+  when: "'controller' in group_names"
+
+- name: set ovn nb
+  shell: ovs-vsctl set open . external_ids:ovn-nb="tcp:{{ internal_vip_address }}:6641"
+  when: "'controller' in group_names"
+
+# Create Bridge for Contoller
+- name: Create bridge prod
+  shell: "ovs-vsctl --may-exist add-br br-prod -- set bridge br-prod protocols=OpenFlow13"
+  when: "'controller' in group_names"
+
+- name: Create bridge dev
+  shell: "ovs-vsctl --may-exist add-br br-dev -- set bridge br-dev protocols=OpenFlow13"
+  when: "'controller' in group_names"
+
+- name: Mapping interface to bridge production
+  shell: "ovs-vsctl set open . external-ids:ovn-bridge-mappings=physprod:br-prod,physdev:br-dev"
+  when: "'controller' in group_names"
+
+- name: Add {{ production_interface }} to br-prod
+  shell: "ovs-vsctl --may-exist add-port br-prod {{ production_interface }}"
+  when: "'controller' in group_names"
+
+- name: Add {{ developer_interface }} to br-dev
+  shell: "ovs-vsctl --may-exist add-port br-dev {{ developer_interface }}"
+  when: "'controller' in group_names"
+
+- name: enable chassis as gw
+  shell: ovs-vsctl set open . external-ids:ovn-cms-options=enable-chassis-as-gw
+  when: "'controller' in group_names"
+
+# Create Bridge for Compute
+- name: Create bridge prod
+  shell: "ovs-vsctl --may-exist add-br br-prod -- set bridge br-prod protocols=OpenFlow13"
+  when: "'compute' in group_names"
+
+- name: Create bridge dev
+  shell: "ovs-vsctl --may-exist add-br br-dev -- set bridge br-dev protocols=OpenFlow13"
+  when: "'compute' in group_names"
+
+- name: Mapping interface to bridge production
+  shell: "ovs-vsctl set open . external-ids:ovn-bridge-mappings=physprod:br-prod,physdev:br-dev"
+  when: "'compute' in group_names"
+
+- name: Add {{ production_interface }} to br-prod
+  shell: "ovs-vsctl --may-exist add-port br-prod {{ production_interface }}"
+  when: "'compute' in group_names"
+
+- name: Add {{ developer_interface }} to br-dev
+  shell: "ovs-vsctl --may-exist add-port br-dev {{ developer_interface }}"
+  when: "'compute' in group_names"
+
+- name: restart neutron-server
+  systemd:
+    name: neutron-server
+    state: restarted
+  when: "'controller' in group_names"
+
+- name: restart ovn-controller
+  systemd:
+    name: ovn-controller
+    state: restarted
+  when: "'controller' in group_names"
+
+- name: restart nova-api
+  systemd:
+    name: nova-api
+    state: restarted
+  when: "'controller' in group_names"
+
+# COMPUTE
+
+- name: set ovn remote
+  shell: ovs-vsctl set open . external-ids:ovn-remote="tcp:{{ internal_vip_address }}:6642"
+  when: "'compute' in group_names"
+
+- name: set ovn encap geneve
+  shell: ovs-vsctl set open . external-ids:ovn-encap-type=geneve
+  when: "'compute' in group_names"
+
+- name: set ovn encap ip
+  shell: ovs-vsctl set open . external-ids:ovn-encap-ip={{ hostvars[inventory_hostname]['ansible_' ~ overlay_interface]['ipv4']['address'] }}
+  when: "'compute' in group_names"
+
+- name: Create neutron metadata configuration file on compute nodes
+  template:
+    src: neutron_ovn_metadata_agent.ini.j2
+    dest: /etc/neutron/neutron_ovn_metadata_agent.ini
+  when: "'compute' in group_names"
+
+- name: restart neutron service
+  systemd:
+    name: neutron-ovn-metadata-agent
+    state: restarted
+  when: "'compute' in group_names"
+
+- name: restart ovn service
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - ovn-central.service
+    - ovn-controller.service
+    - ovn-host.service
+    - ovn-nb-ovsdb.service
+    - ovn-northd.service
+    - ovn-ovsdb-server-nb.service
+    - ovn-ovsdb-server-sb.service
+    - ovn-sb-ovsdb.service
+  when: "'compute' in group_names"
+
+- name: restart neutron-ovn-metadata-agent
+  systemd:
+    name: neutron-ovn-metadata-agent
+    state: restarted
+  when: "'compute' in group_names"
+
+# NEUTRON DRIVER
+
+- name: create dvr sysctl configuration file
+  template:
+    src: 99-neutron-dvr.conf.j2
+    dest: /usr/lib/sysctl.d/99-neutron-dvr.conf
+    mode: '0644'
+  notify: load sysctl parameters

@@ -1,0 +1,17 @@
+---
+  - name: Create List of mon nodes to be added into Cluster
+    set_fact: monnamelist={%for host in groups['mgrs']%}"{{ hostvars[host]['ansible_hostname']}}"{% if not loop.last %},{% endif %}{% endfor %}
+
+  - name: Procces line list of mon hostname with bash
+    shell: echo "{{ monnamelist }}"|tr -d '"'|sed -r 's/,/ /g'
+    register: mon_hostname
+
+  - name: Install Ceph Package (mgr)
+    become_user: "{{ lookup('env','USER') }}"
+    shell: "ceph-deploy install --mgr --release {{ ceph_version }} {{ mon_hostname.stdout }}"
+    run_once: true
+
+  - name: Create and Deploy ceph-mgr Daemon
+    become_user: "{{ lookup('env','USER') }}"
+    shell: "ceph-deploy mgr create {{ mon_hostname.stdout }}"
+    run_once: true

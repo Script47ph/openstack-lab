@@ -1,0 +1,4 @@
+---
+- import_tasks: ubuntu-erlang.yml
+- import_tasks: ubuntu-rabbitmq.yml
+# tasks file for rabbitmq

@@ -1,0 +1,17 @@
+- hosts: ceph-nodes
+  become: yes
+  tasks:
+    - name: Uninstall ceph-deploy
+      shell: "pip3 uninstall ceph-deploy -y"
+      become_user: root
+
+    - name: Uninstall chrony
+      apt:
+        name: chrony
+        state: absent
+      become_user: root
+
+    - name: Remove dependencies that are no longer required
+      apt:
+        autoremove: yes
+      become_user: root

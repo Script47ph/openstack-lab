@@ -1,0 +1,25 @@
+---
+- name: Install required packages
+  apt:
+    name: "{{ pacemaker_packages }}"
+    state: latest
+- name: Create log directory
+  file:
+    path: /var/log/hacluster
+    state: directory
+
+- name: Check hacluster user password run once
+  stat:
+    path: /var/log/hacluster/hacluster_pw.log
+  register: cluster_pw
+
+- name: Set password for hacluster user
+  shell: echo hacluster:{{ pacemaker_hacluster_password }} | chpasswd > /var/log/hacluster/hacluster_pw.log
+  when:  cluster_pw.stat.exists == False
+
+- name: Start pcsd service
+  service:
+    name: pcsd
+    state: restarted
+    enabled: yes
+  when:  cluster_pw.stat.exists == False

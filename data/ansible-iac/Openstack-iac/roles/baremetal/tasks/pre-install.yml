@@ -1,0 +1,100 @@
+---
+- name: Generate /etc/hosts for all of the nodes
+  blockinfile:
+    dest: /etc/hosts
+    marker: "# {mark} ANSIBLE GENERATED HOSTS"
+    block: |
+       {{ internal_vip_address }} {{ internal_vip_hostname }}
+       {{ admin_vip_address }} {{ admin_vip_hostname }}
+       {{ public_vip_address }} {{ public_vip_hostname }}
+       {% for item in play_hosts %}
+       {{ hostvars[item]['ansible_' ~ api_interface]['ipv4']['address'] }} {{ hostvars[item]['ansible_hostname'] }}
+       {% endfor %}
+  become: True
+  when:
+   - customize_etc_hosts | bool
+
+- name: Ensure sudo group is present
+  group:
+    name: sudo
+    state: present
+  become: True
+
+- block:
+    - block:
+        - name: Install apt packages
+          apt:
+            update_cache: yes
+          become: True
+
+        - name: Install ca certs
+          package:
+            name: "{{ item }}"
+            state: latest
+          become: True
+          with_items:
+            - ca-certificates
+            - apt-transport-https
+            - xinetd
+              
+        - name: Ensure apt sources list directory exists
+          file:
+            path: /etc/apt/sources.list.d
+            state: directory
+            recurse: yes
+          become: True
+      when: ansible_os_family == 'Debian'
+
+- name: Add cloud-archive:ussuri repo
+  shell: add-apt-repository cloud-archive:ussuri -y
+  become: True
+  when: ansible_os_family == 'Debian'
+
+- name: Add ceph repository for ubuntu18
+  apt_repository:
+    repo: deb https://download.ceph.com/debian-pacific/ bionic main
+    state: present
+    filename: ceph.list
+    mode: '0644'
+    update_cache: no
+
+- name: Import ceph gpg key
+  shell: curl https://download.ceph.com/keys/release.asc | gpg --no-default-keyring --keyring /tmp/fix.gpg --import - && gpg --no-default-keyring --keyring /tmp/fix.gpg --export > /etc/apt/trusted.gpg.d/ceph.release.gpg && rm /tmp/fix.gpg
+  args:
+    warn: false
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+  become: True
+  when: ansible_os_family == 'Debian'
+
+- name: Install ceph-common
+  apt:
+    name: ceph-common
+    state: latest
+
+- name: Set firewall default policy
+  become: True
+  ufw:
+    state: disabled
+    policy: allow
+  when: ansible_os_family == 'Debian'
+  ignore_errors: yes
+
+- name: Install apt packages
+  package:
+    name: "{{ (debian_pkg_install | join(' ')).split() }}"
+    state: present
+  become: True
+  when: ansible_os_family == 'Debian'
+  register: apt_install_result
+
+- name: Start and enabled chronyd
+  service:
+    name: chronyd
+    state: started
+    enabled: yes
+- name: Set timezone to Asia/Jakarta
+  timezone:
+    name: Asia/Jakarta

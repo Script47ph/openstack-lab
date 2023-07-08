@@ -1,0 +1,22 @@
+---
+  - hosts: ceph-nodes
+    become: yes
+    vars_files:
+      - group_vars/all.yml
+    roles:
+    - {role: 'pre-bootstrap', tags: 'pre-bootstrap'}
+
+
+  - hosts: ceph-nodes
+    become: yes
+    vars_files:
+      - group_vars/all.yml
+    roles:
+    - {role: 'bootstrap', tags: 'bootstrap'}
+    
+  - hosts: ceph-nodes
+    become: yes
+    vars_files:
+      - group_vars/all.yml
+    roles:
+    - {role: 'chrony', tags: 'chrony'}

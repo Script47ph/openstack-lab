@@ -1,0 +1,9 @@
+---
+heat:
+  controller:
+    packages:
+      - heat-common
+      - python3-heatclient
+      - heat-api
+      - heat-api-cfn
+      - heat-engine

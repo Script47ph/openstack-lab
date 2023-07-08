@@ -1,0 +1,9 @@
+[DEFAULT]
+nova_metadata_host = {{ internal_vip_address }}
+metadata_proxy_shared_secret = {{ metadata_proxy_secret }}
+
+[ovs]
+ovsdb_connection = unix:/var/run/openvswitch/db.sock
+
+[ovn]
+ovn_sb_connection = {% for node in groups['controller'] %}tcp:{{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6642{% if not loop.last %},{% endif %}{% endfor %}

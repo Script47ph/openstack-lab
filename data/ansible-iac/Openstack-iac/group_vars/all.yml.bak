@@ -1,0 +1,76 @@
+---
+#########
+# GLOBAL
+#########
+instance: bri
+region_name: dce
+
+#######
+# VIP
+#######
+internal_vip_address: 10.252.10.15
+admin_vip_address: "{{ internal_vip_address }}"
+public_vip_address: 10.253.10.15
+
+internal_vip_hostname: internal.dce.bri.co.id
+admin_vip_hostname: admin.dce.bri.co.id
+public_vip_hostname: public.dce.bri.co.id
+#internal_vip_prefix: 24 (Default value)
+
+############
+# INTERFACE
+############
+api_interface: ens3
+public_api_interface: ens4
+overlay_interface: ens5
+production_interface: ens6
+developer_interface: ens7
+
+
+##########
+# MARIADB
+##########
+mysql_old_root_password: ""
+mysql_root_password: "mysql!btech"
+mysql_default_port: 3306
+mysql_clustercheck_password: "clustercheck!btech"
+mysql_keystone_password: "keystone!btech"
+mysql_glance_password: "glance!btech"
+mysql_cinder_password: "cinder!btech"
+mysql_nova_password: "nova!btech"
+mysql_placement_password: "placement!btech"
+mysql_neutron_password: "rahasia"
+mysql_heat_password: "heat!btech"
+mysql_octavia_password: "octavia!btech"
+mysql_magnum_password: "magnum!btech"
+
+################
+# OPENSTACK USER
+################
+rabbitmq_openstack_password: "rabbitmqbtech"
+pacemaker_hacluster_password: "pacemakerbtech"
+openstack_admin_password: "rahasia"
+openstack_glance_password: "glance!btech"
+openstack_cinder_password: "cinder!btech"
+openstack_nova_password: "nova!btech"
+openstack_placement_password: "placement!btech"
+openstack_neutron_password: "rahasia"
+openstack_heat_password: "heat!btech"
+openstack_heat_domain_admin_password: "heat_domain_admin!btech"
+openstack_octavia_password: "octavia!btech"
+openstack_magnum_password: "magnum!btech"
+openstack_magnum_domain_admin_password: "magnum_domain_admin!btech"
+
+
+#########
+# SECRET
+#########
+metadata_proxy_secret: "skskdjqoqlaoslod"
+rbd_secret_uuid: "f2912ae6-c71c-4fa0-bfb7-4a30798bdf38"
+
+
+##########
+# OCTAVIA
+##########
+#amphora_root_password: ThisIsSecret
+ca_private_key_passphrase: "octavia!btech"

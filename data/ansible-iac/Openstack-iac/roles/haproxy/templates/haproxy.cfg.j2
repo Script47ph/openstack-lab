@@ -1,0 +1,223 @@
+ global
+  chroot  /var/lib/haproxy
+  daemon
+  group  haproxy
+  maxconn  4000
+  pidfile  /var/run/haproxy.pid
+  user  haproxy
+
+defaults
+  log  global
+  maxconn  4000
+  option  redispatch
+  retries  3
+  timeout  http-request 10s
+  timeout  queue 1m
+  timeout  connect 10s
+  timeout  client 480m
+  timeout  server 480m
+  timeout  check 10s
+
+# HAPROXY Status Page
+
+listen stats
+  bind *:1945
+  mode http
+  stats enable
+  stats hide-version
+  stats uri /stats
+  stats refresh 10s
+  stats show-node
+
+# DASHBOARD
+
+ listen dashboard_cluster
+  bind {{ public_vip_address }}:80
+  bind {{ public_vip_address }}:443 ssl crt /etc/ssl/certs/cert.dce.bri.co.id.pem
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:80 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# GALERA
+
+ listen galera_cluster
+  bind {{ internal_vip_address }}:3306
+  balance  source
+  option  httpchk
+  {% for node in groups['controller'] %}
+  {% if hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] == groups['controller'][0] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:3306 check port 9200 inter 2000 rise 2 fall 5
+  {% else %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:3306 backup check port 9200 inter 2000 rise 2 fall 5
+  {% endif %}
+  {% endfor %}
+
+
+# GLANCE
+
+ listen glance_api_cluster
+  bind {{ internal_vip_address }}:9292
+  bind {{ public_vip_address }}:9292
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:9292 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# KEYSTONE
+
+ listen keystone_cluster
+  bind {{ internal_vip_address }}:5000
+  bind {{ public_vip_address }}:5000
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:5000 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# NOVA COMPUTE
+
+ listen nova_compute_api_cluster
+  bind {{ internal_vip_address }}:8774
+  bind {{ public_vip_address }}:8774
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:8774 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# NOVA METADATA
+
+ listen nova_metadata_api_cluster
+  bind {{ internal_vip_address }}:8775
+  bind {{ public_vip_address }}:8775
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:8775 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# CINDER
+
+ listen cinder_api_cluster
+  bind {{ internal_vip_address }}:8776
+  bind {{ public_vip_address }}:8776
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:8776 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# PLACEMENT
+
+ listen placement_internal_api_cluster
+  bind {{ internal_vip_address }}:8778
+  bind {{ public_vip_address }}:8778
+  balance  source
+  option  tcpka
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:8778 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# NOVA VNC
+
+ listen nova_vncproxy_cluster
+  bind {{ public_vip_address }}:6080 
+  #ssl crt /etc/ssl/certs/cert.dce.bri.co.id.pem
+  balance  source
+  option  tcpka
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6080 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# NEUTRON
+
+ listen neutron_api_cluster
+  bind {{ internal_vip_address }}:9696
+  bind {{ public_vip_address }}:9696
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:9696 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# HEAT
+
+listen heat_api
+  bind {{ internal_vip_address }}:8004
+  bind {{ public_vip_address }}:8004
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:8004 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+listen heat_cfn
+  bind {{ internal_vip_address }}:8000 transparent
+  bind {{ public_vip_address }}:8000 transparent
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:8000 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+# OCTAVIA
+
+listen octavia_api_cluster
+  bind {{ internal_vip_address }}:9876
+  bind {{ public_vip_address }}:9876
+  balance  source
+  option  tcpka
+  option  httpchk
+  option  tcplog
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:9876 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+#OVN-REMOTE VIP
+
+frontend ovn_northbound_ovsdb
+  bind {{ internal_vip_address }}:6641
+  default_backend be_ovn_northbound_ovsdb
+  mode tcp
+backend be_ovn_northbound_ovsdb
+  balance leastconn
+  mode tcp
+  option tcp-check
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6641 check inter 2000 rise 2 fall 5
+  {% endfor %}
+
+frontend ovn_southbound_ovsdb
+  bind {{ internal_vip_address }}:6642
+  default_backend be_ovn_southbound_ovsdb
+  mode tcp
+backend be_ovn_southbound_ovsdb
+  balance leastconn
+  mode tcp
+  option tcp-check
+  {% for node in groups['controller'] %}
+  server {{ hostvars[node]['ansible_hostname'] }} {{ hostvars[node]['ansible_' ~ api_interface]['ipv4']['address'] }}:6642 check inter 2000 rise 2 fall 5
+  {% endfor %}

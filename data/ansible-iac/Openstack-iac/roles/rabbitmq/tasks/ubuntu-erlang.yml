@@ -1,0 +1,6 @@
+---
+- name: Install Erlang service
+  apt:
+    name: erlang
+    state: latest
+    update_cache: yes

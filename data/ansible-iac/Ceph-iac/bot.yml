@@ -1,0 +1,7 @@
+---
+- hosts: mons
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+  roles:
+      - pre-bootstrap

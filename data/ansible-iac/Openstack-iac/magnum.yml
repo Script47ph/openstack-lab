@@ -1,0 +1,4 @@
+- name: Apply role Magnum
+  hosts: controller
+  roles:
+    - {role: 'magnum', tags: 'magnum'}

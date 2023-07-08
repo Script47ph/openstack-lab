@@ -1,0 +1,8 @@
+---
+pacemaker_packages:
+  - pacemaker
+  - corosync
+  - fence-agents
+  - pcs
+  - resource-agents
+internal_vip_prefix: 24

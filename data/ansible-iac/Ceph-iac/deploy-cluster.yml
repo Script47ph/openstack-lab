@@ -1,0 +1,36 @@
+---
+- hosts: mons
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+  roles:
+      - mon
+
+- hosts: mgrs
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+  roles:
+      - mgr
+
+- hosts: ceph-nodes
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+  roles:
+    - {role: 'osd', tags: 'osds'}
+
+- hosts: osds
+  serial: 1
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+  roles:
+      - apply-osd
+
+- hosts: deployer
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+  roles:
+      - ceph-dashboard

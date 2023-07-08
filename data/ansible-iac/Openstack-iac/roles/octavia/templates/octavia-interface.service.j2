@@ -1,0 +1,10 @@
+[Unit]
+Description=Octavia Interface Creator
+Requires=openvswitch-switch.service
+After=openvswitch-switch.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/opt/octavia-interface.sh start
+ExecStop=/opt/octavia-interface.sh stop

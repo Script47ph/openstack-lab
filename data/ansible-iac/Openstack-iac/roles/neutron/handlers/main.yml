@@ -1,0 +1,3 @@
+---
+- name: load sysctl parameters
+  shell: sysctl -p /usr/lib/sysctl.d/99-neutron-dvr.conf

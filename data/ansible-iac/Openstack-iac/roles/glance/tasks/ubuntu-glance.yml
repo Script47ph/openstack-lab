@@ -1,0 +1,152 @@
+---
+
+- name: Create glance database
+  mysql_db:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: glance
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant glance user for  local host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: glance
+    password: "{{ mysql_glance_password }}"
+    append_privs: true
+    priv: 'glance.*:ALL'
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant glance database controller host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: glance
+    password: "{{ mysql_glance_password }}"
+    append_privs: true
+    priv: 'glance.*:ALL'
+    host: "{{ hostvars[item]['ansible_hostname'] }}"
+  with_items: "{{ groups['controller'] }}"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant glance database any host access
+  mysql_user:
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: glance
+    password: "{{ mysql_glance_password }}"
+    append_privs: true
+    priv: 'glance.*:ALL'
+    host: "%"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create glance user
+  os_user:
+    cloud: openstack
+    state: present
+    name: glance
+    password: "{{ openstack_glance_password }}"
+    update_password: on_create
+    domain: default
+    default_project: admin
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Grant admin role on the glance user
+  os_user_role:
+    cloud: openstack 
+    user: glance
+    role: admin
+    project: service
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create glance service
+  os_keystone_service:
+    cloud: openstack
+    state: present
+    name: glance
+    service_type: image
+    description: "OpenStack Image Service"
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create glance public endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: glance
+    endpoint_interface: public
+    url: "http://{{ public_vip_hostname }}:9292"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create glance internal endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: glance
+    endpoint_interface: internal
+    url: "http://{{ internal_vip_hostname }}:9292"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Create glance admin endpoint
+  os_keystone_endpoint:
+    cloud: openstack
+    service: glance
+    endpoint_interface: admin
+    url: "http://{{ admin_vip_hostname }}:9292"
+    region: "{{ region_name }}"
+    state: present
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Install glance package
+  apt:
+    name: glance
+    state: latest
+
+- name: Install python3-rbd package
+  apt:
+    name: python3-rbd
+    state: latest
+
+- name: Create glance-api configuration file
+  template:
+    src: glance-api.conf.j2
+    dest: /etc/glance/glance-api.conf
+    mode: '0640'
+  notify: restart glance-api service
+
+- name: Create ansible temporary directory
+  file:
+    path: /var/lib/glance/.ansible/tmp
+    state: directory
+    mode: 0755
+  become: yes
+  become_user: glance
+  when: inventory_hostname == groups['controller'][0]
+
+- name: Populate glance database
+  shell: glance-manage db_sync
+  become: yes
+  become_user: glance
+  when: inventory_hostname == groups['controller'][0]
+  register: command_result
+  failed_when:
+    - "'FAIL' in command_result.stderr"
+
+- name: Chown glance in controller
+  file:
+    path: /etc/ceph/ceph.client.glance.keyring
+    owner: glance
+    group: glance
+    mode: '0644'
+
+- name: Start glance-api service
+  service:
+    name: glance-api
+    state: started
+    enabled: yes

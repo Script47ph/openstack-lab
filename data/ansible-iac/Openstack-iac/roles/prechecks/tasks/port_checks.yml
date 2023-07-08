@@ -1,0 +1,9 @@
+---
+- name: Checking the api_interface is present
+  fail: "msg='Please check the api_interface property - interface {{ api_interface }} not found'"
+  when: api_interface not in ansible_interfaces
+
+- name: Checking the api_interface is active
+  fail: "msg='Please check the api_interface settings - interface {{ api_interface }} is not active'"
+  when: not hostvars[inventory_hostname]['ansible_' + api_interface]['active']
+
