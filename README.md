@@ -3,6 +3,6 @@
 ### How to run?
 
 ```bash
-source env
+source .env
 ./Openstack.sh --help
 ```
