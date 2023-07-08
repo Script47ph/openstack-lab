@@ -330,20 +330,28 @@ snapshot_lab_list() {
 }
 
 deploy_ceph_cluster() {
-    tar -cf ${DATAPATH}/ansible-iac/ceph-cluster.tar ${DATAPATH}/ansible-iac/Ceph-iac
-    scp ${DATAPATH}/ansible-iac/ceph-cluster.tar root@${CIDR}.${INTERFACE3}.11:/root
+    cd ${DATAPATH}/ansible-iac
+    tar -cf ceph-cluster.tar Ceph-iac
+    scp ceph-cluster.tar root@${CIDR}.${INTERFACE3}.11:/root
     ssh -l root ${CIDR}.${INTERFACE3}.11 tar -xf /root/ceph-cluster.tar
     ssh -l root ${CIDR}.${INTERFACE3}.11 rm /root/ceph-cluster.tar
-    rm ${DATAPATH}/ansible-iac/ceph-cluster.tar
-    ssh -l root ${CIDR}.${INTERFACE3}.11 pip3 install ansible && python3 -m pip install jinja2==3.0.3
-    ssh -l root ${CIDR}.${INTERFACE3}.11 ansible -i /root/Ceph-iac/hosts all -m ping
+    rm ceph-cluster.tar
+    ansible_check=$(ssh -l root ${CIDR}.${INTERFACE3}.11 which ansible)
+    if [[ -z ${ansible_check} ]]; then
+        echo "ansible not found. Installing..."
+        ssh -l root ${CIDR}.${INTERFACE3}.11 pip3 install ansible && python3 -m pip install jinja2==3.0.3
+    else
+        echo "ansible found."
+    fi
+    ssh -l root ${CIDR}.${INTERFACE3}.11 ansible -i /root/Ceph-iac/inventory/hosts all -m ping
     if [[ $? -eq 0 ]]; then
-        ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/hosts /root/Ceph-iac/site.yml
+        ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/inventory/hosts /root/Ceph-iac/bootstrap-server.yml
+        ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/inventory/hosts /root/Ceph-iac/deploy-cluster.yml
+        ssh -l root ${CIDR}.${INTERFACE3}.11 /root/Ceph-iac/keyring-copy.sh
     else
         echo "ansible ping failed."
         exit 1
     fi
-    ssh -l root ${CIDR}.${INTERFACE3}.11 /root/Ceph-iac/keyring-copy.sh
 }
 
 prepare_lab() {
