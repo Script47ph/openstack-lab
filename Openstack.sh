@@ -495,7 +495,7 @@ usage () {
     echo
     echo "Usage: Openstack.sh [OPTION] arg"
     echo "--net (Valid values: create, delete, start)"
-    echo "--lab (Valid values: create, delete, deploy, stop, start, snapshot take, restore, snapshot list, prepare, deploy ceph)"
+    echo "--lab (Valid values: create, delete, deploy lab, deploy ceph, deploy openstack, stop, start, snapshot take, restore, snapshot list, prepare)"
     echo "--pool (Valid values: create, delete, start, stop)"
     echo
 }
