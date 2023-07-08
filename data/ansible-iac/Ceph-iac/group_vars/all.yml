@@ -1,8 +1,8 @@
 cluster_storage_interface: ens9 # Bri environment
 public_storage_interface: ens8 # Bri environment
 region_name: dce # Bri environment
-public_network: 10.5.238.0/24
-cluster_network: 10.5.239.0/24
+#public_network: 10.5.238.0/24
+#cluster_network: 10.5.239.0/24
 ceph_version: 15.2.17
 ### SSH COPY-id
 #if you wanna use this feature make sure you fiel all the ssh variable

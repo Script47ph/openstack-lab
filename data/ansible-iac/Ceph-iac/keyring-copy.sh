@@ -30,3 +30,6 @@ sudo ceph auth get-or-create client.glance | ssh compute-0$i "sudo tee /etc/ceph
 sudo ceph auth get-or-create client.cinder | ssh compute-0$i "sudo tee /etc/ceph/ceph.client.cinder.keyring"
 sudo ceph auth get-or-create client.cinder-backup | ssh compute-0$i "sudo tee /etc/ceph/ceph.client.cinder-backup.keyring"
 done
+
+sudo ceph config set mon mon_warn_on_insecure_global_id_reclaim false
+sudo ceph config set mon mon_warn_on_insecure_global_id_reclaim_allowed false

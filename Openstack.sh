@@ -1,41 +1,4 @@
 #!/bin/bash
-# Env
-export CIDR=10.5
-export BRIDGE=105
-export INTERFACE3=251
-export INTERFACE4=236
-export INTERFACE5=237
-export INTERFACE6=216
-export INTERFACE7=224
-export INTERFACE8=238
-export INTERFACE9=239
-# export POOLIMAGES=/data/images
-export POOLISOPATH=vm/images
-export POOLVMSPATH=vm/disk
-export POOLISONAME=images
-export POOLVMSNAME=disk
-export PUBKEY1="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBXnLBUMEuc3jJs3lJbvdduTlcnj4nW6COYEh30H6MPo script47@nb23cce"
-export VMCTRL=control-0
-export VMCMPT=compute-0
-export VMOS=ubuntu-bionic.img
-export VMCTRL_NESTED=Y
-export VMCMPT_NESTED=Y
-export VMCTRL_VCPUS=4
-export VMCTRL_MEMORY=10G
-export VMCTRL_DISK1=20G
-export VMCMPT_VCPUS=8
-export VMCMPT_MEMORY=16G
-export VMCMPT_DISK1=20G
-export VMCMPT_DISK2=30G
-export VMCMPT_DISK3=30G
-export TEMPLATEDIR=template
-export TFGENDIR1=lab-ctrl
-export TFGENNAME1=lab-ctrl.txt
-export TFGENDIR2=lab-cmpt
-export TFGENNAME2=lab-cmpt.txt
-export DATAPATH=data
-export LIBVIRTPROVIDER="$HOME.local/share/terraform/plugins/registry.terraform.io/dmacvicar/libvirt/0.7.1/linux_amd64"
-export PUBKEYNODE=pubkeylist
 # Openstack lab network configuration
 
 create_net() {
@@ -366,6 +329,22 @@ snapshot_lab_list() {
     done
 }
 
+deploy_ceph_cluster() {
+    tar -cf ${DATAPATH}/ansible-iac/ceph-cluster.tar ${DATAPATH}/ansible-iac/Ceph-iac
+    scp ${DATAPATH}/ansible-iac/ceph-cluster.tar root@${CIDR}.${INTERFACE3}.11:/root
+    ssh -l root ${CIDR}.${INTERFACE3}.11 tar -xf /root/ceph-cluster.tar
+    ssh -l root ${CIDR}.${INTERFACE3}.11 rm /root/ceph-cluster.tar
+    rm ${DATAPATH}/ansible-iac/ceph-cluster.tar
+    ssh -l root ${CIDR}.${INTERFACE3}.11 ansible -i /root/Ceph-iac/hosts all -m ping
+    if [[ $? -eq 0 ]]; then
+        ssh -l root ${CIDR}.${INTERFACE3}.11 ansible-playbook -i /root/Ceph-iac/hosts /root/Ceph-iac/site.yml
+    else
+        echo "ansible ping failed."
+        exit 1
+    fi
+    ssh -l root ${CIDR}.${INTERFACE3}.11 /root/Ceph-iac/keyring-copy.sh
+}
+
 prepare_lab() {
     rm $HOME/.ssh/known_hosts
     if [[ -e "${DATAPATH}/${PUBKEYNODE}" ]]; then
@@ -420,7 +399,7 @@ EOF
         timedatectl set-ntp true
         apt update
         apt upgrade -y
-        apt install -y chrony git wget unzip vim bash-completion
+        apt install -y chrony git wget unzip vim bash-completion python3 python3-pip
         wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh
         chmod +x /usr/local/bin/oh-my-posh
         rm -rf simple-dotfiles
@@ -445,7 +424,7 @@ usage () {
     echo
     echo "Usage: Openstack.sh [OPTION] arg"
     echo "--net (Valid values: create, delete, start)"
-    echo "--lab (Valid values: create, delete, deploy, stop, start, snapshot take, restore, snapshot list, prepare)"
+    echo "--lab (Valid values: create, delete, deploy, stop, start, snapshot take, restore, snapshot list, prepare, deploy ceph)"
     echo "--pool (Valid values: create, delete, start, stop)"
     echo
 }
@@ -475,7 +454,11 @@ elif [[ $1 == "--lab" ]]; then
     elif [[ $2 == "delete" ]]; then
         delete_lab
     elif [[ $2 == "deploy" ]]; then
-        deploy_lab
+        if [[ $3 == "ceph" ]]; then
+            deploy_ceph_cluster
+        else
+            deploy_lab
+        fi
     elif [[ $2 == "stop" ]]; then
         stop_lab
     elif [[ $2 == "start" ]]; then
