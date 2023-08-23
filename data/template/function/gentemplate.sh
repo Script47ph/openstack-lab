@@ -75,7 +75,7 @@ resource "libvirt_domain" "${!VM_NAME}" {
     name = "${!VM_NAME}"
     memory = "${!VM_MEMORY}"
     vcpu = "${!VM_VCPUS}"
-    runnung = false
+    running = false
     # machine = "pc-i440fx-6.2"
 
 EOF
